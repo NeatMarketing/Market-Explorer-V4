@@ -229,7 +229,6 @@ if not hotel_ds:
 # Sidebar: selection + inputs
 # =============================================================================
 with st.sidebar:
-    
     st.markdown("### Navigation")
     if st.button("🏠 Home", use_container_width=True):
         st.switch_page("pages/0_Home.py")
@@ -298,12 +297,19 @@ with st.sidebar:
     )
     sel = df_pick_small.iloc[int(idx)].to_dict()
 
-    st.divider()
-    st.header("Sales inputs")
+# =============================================================================
+# Assumptions (main page inputs)
+# =============================================================================
+st.subheader("Assumptions")
+st.caption("Keep the selection in the sidebar. Adjust the business inputs directly here.")
 
+tab_hotel, tab_market, tab_risk, tab_decision = st.tabs(
+    ["Hotel setup", "Market & pricing", "Risk & broker", "Decision & scenarios"]
+)
+
+with tab_hotel:
     hotel_type = st.selectbox("Hotel type", ["Independent", "Chain", "Group"], index=0)
-
-    st.caption("Hotel type should impact distribution, negotiation power, pricing and risk mix.")
+    st.caption("Hotel type impacts distribution, negotiation power, pricing and risk mix.")
 
     DEFAULT_TYPE_MULT = {
         "Independent": {"take_rate": 0.85, "commission": 1.10, "premium": 0.95, "claim_rate": 0.95},
@@ -326,9 +332,6 @@ with st.sidebar:
         claim_rate=float(type_cr_mult),
     )
 
-    st.divider()
-    st.header("Criteria")
-
     if hotel_type in ["Independent", "Chain"]:
         hotel_count = st.number_input("Number of hotels", min_value=1, value=1, step=1)
         avg_rooms_per_hotel = st.number_input("Avg rooms per hotel", min_value=1, value=80, step=1)
@@ -342,10 +345,8 @@ with st.sidebar:
         st.caption(f"Total rooms = {rooms:,}")
 
     avg_stay_nights = st.number_input("Avg stay length (nights)", min_value=1.0, value=2.0, step=0.5)
-
-    st.divider()
-    st.header("Market assumptions")
-
+    
+with tab_market:
     default_occ = {"France": 0.65, "Europe": 0.62, "Europe + France": 0.63}[zone_ui]
     occupancy = st.slider("Occupancy rate (annual average)", 0.10, 0.95, float(default_occ), 0.01)
 
@@ -354,15 +355,12 @@ with st.sidebar:
     tr_interrupt = st.slider("Base take rate — Interruption", 0.00, 0.60, 0.07 if zone_ui == "France" else 0.08, 0.01)
 
     st.divider()
-    st.header("Product pricing")
 
     st.caption("Premium is priced as % of average stay price.")
     prem_cancel_pct = st.slider("Base premium % — Cancellation", 0.0, 0.25, 0.06, 0.005)
     prem_interrupt_pct = st.slider("Base premium % — Interruption", 0.0, 0.25, 0.04, 0.005)
-
-    st.divider()
-    st.header("Risk assumptions")
-
+    
+with tab_risk:
     st.caption("Single average rates (MVP).")
     claim_rate_cancel = st.slider("Base claim rate — Cancellation", 0.0, 0.40, 0.06, 0.005)
     claim_rate_interrupt = st.slider("Base claim rate — Interruption", 0.0, 0.40, 0.03, 0.005)
@@ -370,21 +368,14 @@ with st.sidebar:
     claim_amt_cancel = st.number_input("Avg claim amount — Cancellation ($)", min_value=0.0, value=350.0, step=50.0)
     claim_amt_interrupt = st.number_input("Avg claim amount — Interruption ($)", min_value=0.0, value=500.0, step=50.0)
 
-    st.divider()
-    st.header("Broker economics")
-
     broker_commission = st.slider("Base broker commission on premium", 0.0, 0.50, 0.20, 0.01)
-
-    st.divider()
-    st.header("Decision thresholds")
-
+with tab_decision:
     lr_green = st.slider("S/P green (≤)", 0.0, 1.5, 0.55, 0.01)
     lr_orange = st.slider("S/P orange (≤)", 0.0, 2.5, 0.75, 0.01)
 
     rev_green_m = st.number_input("Broker rev green (M$) ≥", min_value=0.0, value=0.15, step=0.05)
     rev_orange_m = st.number_input("Broker rev orange (M$) ≥", min_value=0.0, value=0.05, step=0.01)
 
-    st.divider()
     with st.expander("Scenarios (edit multipliers)", expanded=False):
         st.caption("Multipliers applied on top of base inputs (and after hotel type).")
 
