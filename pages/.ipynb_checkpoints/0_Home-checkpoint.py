@@ -44,7 +44,7 @@ with st.sidebar:
     st.button("🏠 Home", use_container_width=True, disabled=True)
     if st.button("🔎 Market Explorer", use_container_width=True):
         st.switch_page("pages/1_Market_Explorer.py")
-    if st.button("📈 Business Plan", use_container_width=True):
+    if st.button("📈 BP Hôtellerie", use_container_width=True):
         st.switch_page("pages/2_Company_Business_Plan.py")
     st.divider()
 
@@ -171,9 +171,9 @@ with a1:
         st.switch_page("pages/1_Market_Explorer.py")
 
 with a2:
-    st.write("**📈 Company Business Plan**")
-    st.caption("Build assumptions and compute business plan outputs.")
-    if st.button("Open Business Plan →", use_container_width=True):
+    st.write("**📈 BP Hôtellerie **")
+    st.caption("Build assumptions and compute business plan outputs for hotels.")
+    if st.button("Open BP Hôtellerie →", use_container_width=True):
         st.switch_page("pages/2_Company_Business_Plan.py")
 
 st.divider()
