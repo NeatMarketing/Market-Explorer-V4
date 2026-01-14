@@ -25,9 +25,10 @@ CREDENTIALS_ENV = "MARKET_EXPLORER_AUTH_JSON"       # JSON string in env
 CREDENTIALS_FILE_ENV = "MARKET_EXPLORER_AUTH_FILE"  # path to JSON file in env
 
 ENABLE_SIGNUP_ENV = "MARKET_EXPLORER_ENABLE_SIGNUP"  # "true"/"false"
-DEFAULT_ENABLE_SIGNUP = True
+DEFAULT_ENABLE_SIGNUP = False
 
 MIN_PASSWORD_LEN = 10
+SIGNUP_ALLOWED_ROLES = {"Stagiaire", "Sales", "Ops", "Manager"}
 
 # Simple lockout
 MAX_FAILED_ATTEMPTS = 5
@@ -367,6 +368,10 @@ def create_user(username: str, password: str, role: str = "Stagiaire", credentia
     users = load_user_db()
     if user in users:
         return False, "This username is already taken."
+     
+    role = (role or "Stagiaire").strip()
+    if role not in SIGNUP_ALLOWED_ROLES:
+        return False, "Selected role is not allowed for signup."
 
     users[user] = {
         "password_hash": hash_password(password),
@@ -380,4 +385,3 @@ def create_user(username: str, password: str, role: str = "Stagiaire", credentia
         return False, "Could not save the account. Check file permissions / deployment storage."
 
     return True, "Account created. You can now sign in."
-

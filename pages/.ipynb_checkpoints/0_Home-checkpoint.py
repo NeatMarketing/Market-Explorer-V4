@@ -98,7 +98,7 @@ if not login_required():
 
                 role = st.selectbox(
                     "Role",
-                    ["Stagiaire", "Sales", "Ops", "Manager", "Admin"],
+                    ["Stagiaire", "Sales", "Ops", "Manager"],
                     index=0,
                     key="signup_role",
                 )

@@ -4,6 +4,11 @@
     "password_hash": "pbkdf2_sha256$390000$6-sPF7Oy6ymPT29CDcndhQ$EotHpZpQ6aiCS1VgP0a_2FO3dYLenlVQlQoFB7lenaQ",
     "role": "Stagiaire"
   },
+  "el\u00e9": {
+    "created_at": 1768382121,
+    "password_hash": "pbkdf2_sha256$390000$wvC2NHIbsDZmbCN1XZyUcg$2pwDDQVcaAHuOKMjB45PU0FmGRZSy8zMeuXYQooSsxs",
+    "role": "Manager"
+  },
   "el\u00e9onore": {
     "created_at": 1768376111,
     "password_hash": "pbkdf2_sha256$390000$NcGcNN6AcNQ-Wo8QVH18mQ$_qGM-YN2aprYpZL0WzRVjheRU8XZ_s7pgR1DhgBHNQ4",
