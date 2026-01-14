@@ -122,9 +122,15 @@ with tab_explorer:
     # -----------------------
     with st.sidebar:
         st.markdown("### Navigation")
-        if st.button("🏠 Home", use_container_width=True):
-            st.switch_page("pages/0_Home.py")
+        st.button("🏠 Home", use_container_width=True, disabled=True)
+        if st.button("🔎 Market Explorer", use_container_width=True):
+            st.switch_page("pages/1_Market_Explorer.py")
+        if st.button("📈 BP Hôtellerie", use_container_width=True):
+            st.switch_page("pages/2_Company_Business_Plan.py")
+        if st.button("🏨 Account BP Hotels", use_container_width=True):
+            st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
         st.divider()
+
         
         st.header("Scope")
 

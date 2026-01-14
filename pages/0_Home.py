@@ -46,6 +46,8 @@ with st.sidebar:
         st.switch_page("pages/1_Market_Explorer.py")
     if st.button("📈 BP Hôtellerie", use_container_width=True):
         st.switch_page("pages/2_Company_Business_Plan.py")
+    if st.button("🏨 Account BP Hotels", use_container_width=True):
+        st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
     st.divider()
 
 

@@ -103,6 +103,7 @@ def format_zone_option(value) -> str:
 # =============================================================================
 # Session state defaults
 # =============================================================================
+
 st.session_state.setdefault("zone", "france")
 st.session_state.setdefault("market", "travel")
 st.session_state.setdefault("vertical", "hotel")
@@ -113,6 +114,7 @@ st.session_state.setdefault("top_n", 10)
 # =============================================================================
 # TAB 1 — MARKET EXPLORER
 # =============================================================================
+
 with tab_explorer:
 
     # -----------------------
@@ -122,6 +124,8 @@ with tab_explorer:
         st.markdown("### Navigation")
         if st.button("🏠 Home", use_container_width=True):
             st.switch_page("pages/0_Home.py")
+        if st.button("🏨 Account BP Hotels", use_container_width=True):
+            st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
         st.divider()
         
         st.header("Scope")

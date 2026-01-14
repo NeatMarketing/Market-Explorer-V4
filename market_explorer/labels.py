@@ -13,7 +13,22 @@ from typing import Optional
 def titleize_slug(value: Optional[str]) -> str:
     if not value:
         return ""
-    value = str(value).strip().replace("_", " ").replace("-", " ")
+    raw_value = str(value).strip()
+    normalized = raw_value.lower().replace("_", "").replace("-", "").replace(" ", "")
+    if normalized == "carrental":
+        return "Car Rental"
+    if normalized == "vacances":
+        return "Clubs Vacances, OTA, TO"
+    if normalized == "telelec":
+        return "Télécom & Electroménager"
+    if normalized == "transportation":
+        return "Cruise & Ferry & Train"
+    if normalized == "optiqueaudio":
+        return "Optique & Audio"
+    if normalized == "hotel":
+        return "Hotels & "
+        
+    value = raw_value.replace("_", " ").replace("-", " ")
     return " ".join(word.capitalize() for word in value.split())
 
 
