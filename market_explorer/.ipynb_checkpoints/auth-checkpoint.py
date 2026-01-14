@@ -5,6 +5,7 @@ import os
 import time
 import hmac
 import hashlib
+import re
 from pathlib import Path
 from typing import Dict, Tuple, Any
 
@@ -29,6 +30,7 @@ DEFAULT_ENABLE_SIGNUP = False
 
 MIN_PASSWORD_LEN = 10
 SIGNUP_ALLOWED_ROLES = {"Stagiaire", "Sales", "Ops", "Manager"}
+USERNAME_ALLOWED_RE = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$")
 
 # Simple lockout
 MAX_FAILED_ATTEMPTS = 5
@@ -55,7 +57,36 @@ def _as_bool(value: str | None, default: bool = False) -> bool:
 
 
 def normalize_username(username: str) -> str:
-    return (username or "").strip().lower()
+    return " ".join((username or "").strip().split()).lower()
+
+
+def validate_username(username: str) -> Tuple[bool, str]:
+    normalized = " ".join((username or "").strip().split())
+    if not normalized:
+        return False, "Please enter a username."
+    if not USERNAME_ALLOWED_RE.match(normalized):
+        return False, "Username must only contain letters, spaces, apostrophes, or hyphens."
+    parts = [part for part in normalized.split(" ") if part]
+    if len(parts) < 2:
+        return False, "Username must be in the format 'Nom Prénom' (two words)."
+    return True, ""
+
+
+def validate_password(password: str) -> Tuple[bool, str]:
+    if not password or len(password) < MIN_PASSWORD_LEN:
+        return False, f"Password must be at least {MIN_PASSWORD_LEN} characters."
+    missing = []
+    if not re.search(r"[a-z]", password):
+        missing.append("one lowercase letter")
+    if not re.search(r"[A-Z]", password):
+        missing.append("one uppercase letter")
+    if not re.search(r"\d", password):
+        missing.append("one number")
+    if not re.search(r"[^A-Za-z0-9]", password):
+        missing.append("one symbol")
+    if missing:
+        return False, "Password must include at least " + ", ".join(missing) + "."
+    return True, ""
 
 
 def user_db_path() -> Path:
@@ -355,12 +386,14 @@ def create_user(username: str, password: str, role: str = "Stagiaire", credentia
     if not signup_enabled():
         return False, "Account creation is disabled."
 
-    user = normalize_username(username)
-    if not user:
-        return False, "Please enter a username."
-    if not password or len(password) < MIN_PASSWORD_LEN:
-        return False, f"Password must be at least {MIN_PASSWORD_LEN} characters."
+    username_ok, username_msg = validate_username(username)
+    if not username_ok:
+        return False, username_msg
 
+    user = normalize_username(username)
+    password_ok, password_msg = validate_password(password)
+    if not password_ok:
+        return False, password_msg
     creds = credentials if credentials is not None else merged_credentials()
     if user in creds:
         return False, "This username is already taken."

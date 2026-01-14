@@ -103,6 +103,7 @@ def format_zone_option(value) -> str:
 # =============================================================================
 # Session state defaults
 # =============================================================================
+
 st.session_state.setdefault("zone", "france")
 st.session_state.setdefault("market", "travel")
 st.session_state.setdefault("vertical", "hotel")
@@ -113,6 +114,7 @@ st.session_state.setdefault("top_n", 10)
 # =============================================================================
 # TAB 1 — MARKET EXPLORER
 # =============================================================================
+
 with tab_explorer:
 
     # -----------------------

@@ -90,9 +90,11 @@ if not login_required():
         with tabs[1]:
             st.subheader("🆕 Create account")
             st.caption("Create a new account (MVP).")
+            st.caption("Username format: Nom Prénom.")
+            st.caption("Password must be at least 10 characters, with upper/lowercase, a number, and a symbol.")
 
             with st.form("signup_form", clear_on_submit=True):
-                nu = st.text_input("New username", key="signup_user")
+                nu = st.text_input("New username", key="signup_user", help="Format: Nom Prénom (letters only).")
                 npw = st.text_input("New password", type="password", key="signup_pass")
                 npw2 = st.text_input("Confirm password", type="password", key="signup_pass2")
 
