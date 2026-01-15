@@ -588,7 +588,12 @@ with st.form("bp_state_form_account"):
         "Compte / groupe / hôtel (optionnel)",
         value=bp_state.get("account", ""),
     )
-    st.success("BP enregistré.")
+    update_current = st.checkbox(
+        "Mettre à jour le BP en cours",
+        value=False,
+        disabled=not active_bp_id,
+        help="Laissez décoché pour enregistrer un nouveau BP.",
+    )
     submitted_bp = st.form_submit_button("Enregistrer ce BP", use_container_width=True)
 
 if submitted_bp:
@@ -596,6 +601,7 @@ if submitted_bp:
         st.error("Merci de renseigner un nom de BP.")
     else:
         session_snapshot = capture_bp_session_state()
+        target_bp_id = active_bp_id if update_current else None
         bp_state = save_bp_state(
             profile,
             {
@@ -603,7 +609,7 @@ if submitted_bp:
                 "account": bp_account.strip(),
                 "session_state": session_snapshot,
             },
-            bp_id=active_bp_id,
+            bp_id=target_bp_id,
         )
         st.session_state["bp_active_id"] = bp_state["id"]
-        st.success("BP enregistré.")
+        st.success("BP mis à jour." if update_current else "BP enregistré.")
