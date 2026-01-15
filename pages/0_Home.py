@@ -9,6 +9,7 @@ from market_explorer.auth import (
     logout,
     signup_enabled,
 )
+from market_explorer.bp_state import clear_bp_state, load_bp_state, save_bp_state
 from market_explorer.notes import load_notes, reset_notes
 
 
@@ -177,6 +178,43 @@ with a2:
     st.caption("Build assumptions and compute business plan outputs for hotels.")
     if st.button("Open BP Hôtellerie →", use_container_width=True):
         st.switch_page("pages/2_Company_Business_Plan.py")
+
+st.divider()
+
+st.subheader("💾 BP en cours")
+bp_state = load_bp_state(profile)
+bp_type_labels = {
+    "Account BP Hotels": "🏨 Account BP Hotels",
+    "BP Hôtellerie": "📈 BP Hôtellerie",
+}
+bp_type_pages = {
+    "Account BP Hotels": "pages/3_Account_Business_Plan_Hotels.py",
+    "BP Hôtellerie": "pages/2_Company_Business_Plan.py",
+}
+
+if bp_state.get("name"):
+    summary_parts = [f"**BP enregistré :** {bp_state['name']}"]
+    if bp_state.get("account"):
+        summary_parts.append(f"**Compte :** {bp_state['account']}")
+    if bp_state.get("bp_type"):
+        summary_parts.append(f"**Type :** {bp_type_labels.get(bp_state['bp_type'], bp_state['bp_type'])}")
+    if bp_state.get("updated_at"):
+        summary_parts.append(f"**Dernière mise à jour :** {bp_state['updated_at']}")
+    st.info("\n\n".join(summary_parts))
+
+    if st.button("Réouvrir ce BP", use_container_width=True):
+        target_page = bp_type_pages.get(bp_state.get("bp_type"))
+        if target_page:
+            st.switch_page(target_page)
+        else:
+            st.warning("Type de BP inconnu : impossible de réouvrir automatiquement.")
+
+    if st.button("Effacer le BP enregistré", use_container_width=True):
+        clear_bp_state(profile)
+        st.success("BP supprimé.")
+        st.rerun()
+else:
+    st.caption("Aucun BP enregistré pour le moment. Enregistrez-le depuis l'onglet BP correspondant.")
 
 st.divider()
 

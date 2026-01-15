@@ -1,6 +1,11 @@
+from pathlib import Path
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+
+from market_explorer.tiering import add_tier, filter_by_tier
+from market_explorer.bp_state import load_bp_state, save_bp_state
 
 # =============================================================================
 # Page config
@@ -13,12 +18,89 @@ st.set_page_config(
 st.title("🏨 Business Plan Hotels — Groupe (MVP)")
 st.caption("MVP sales-friendly pour groupes multi-marques. Calculs simples, robustes et transparents.")
 
+profile = st.session_state.get("profile", "user")
+bp_state = load_bp_state(profile) if profile else {}
+bp_type_labels = {
+    "Account BP Hotels": "🏨 Account BP Hotels",
+    "BP Hôtellerie": "📈 BP Hôtellerie",
+}
+bp_type_keys = list(bp_type_labels.keys())
+bp_type_default = 0
+if bp_state.get("bp_type") in bp_type_keys:
+    bp_type_default = bp_type_keys.index(bp_state["bp_type"])
+
+with st.form("bp_state_form_account"):
+    st.subheader("💾 Enregistrer le BP en cours")
+    bp_name = st.text_input("Nom du BP", value=bp_state.get("name", ""))
+    bp_account = st.text_input(
+        "Compte / groupe / hôtel (optionnel)",
+        value=bp_state.get("account", ""),
+    )
+    bp_type = st.selectbox(
+        "Type de BP",
+        bp_type_keys,
+        index=bp_type_default,
+        format_func=lambda k: bp_type_labels.get(k, k),
+    )
+    submitted_bp = st.form_submit_button("Enregistrer ce BP", use_container_width=True)
+
+if submitted_bp:
+    if not bp_name.strip():
+        st.error("Merci de renseigner un nom de BP.")
+    else:
+        bp_state = save_bp_state(
+            profile,
+            {
+                "name": bp_name.strip(),
+                "account": bp_account.strip(),
+                "bp_type": bp_type,
+            },
+        )
+        st.success("BP enregistré.")
+
+if bp_state.get("name"):
+    summary_parts = [f"**BP en cours :** {bp_state['name']}"]
+    if bp_state.get("account"):
+        summary_parts.append(f"**Compte :** {bp_state['account']}")
+    if bp_state.get("bp_type"):
+        summary_parts.append(f"**Type :** {bp_type_labels.get(bp_state['bp_type'], bp_state['bp_type'])}")
+    if bp_state.get("updated_at"):
+        summary_parts.append(f"**Dernière mise à jour :** {bp_state['updated_at']}")
+    st.info("\n\n".join(summary_parts))
+else:
+    st.info("Aucun BP enregistré. Utilisez le formulaire ci-dessus pour en sauvegarder un.")
+    
 st.divider()
 
 # =============================================================================
 # Sidebar
 # =============================================================================
+DATA_DIR = Path(__file__).resolve().parents[1] / "Data_Clean"
 
+TIER_ORDER = ["All", "Tier 1", "Tier 2", "Tier 3"]
+TIER_UI = {
+    "All": "All Markets",
+    "Tier 1": "Large Market",
+    "Tier 2": "Mid-Market",
+    "Tier 3": "Low-Market",
+}
+TIER_UI_INV = {v: k for k, v in TIER_UI.items()}
+
+ZONE_LABELS = {
+    "france": "France",
+    "eu": "Europe",
+}
+
+def format_zone_option(value: str) -> str:
+    return ZONE_LABELS.get(str(value).strip().lower(), str(value))
+
+@st.cache_data(show_spinner=False)
+def load_hotels(zone_key: str) -> pd.DataFrame:
+    dataset_path = DATA_DIR / f"travel_hotel_{zone_key}_cleaned.csv"
+    if not dataset_path.exists():
+        return pd.DataFrame()
+    return pd.read_csv(dataset_path)
+    
 with st.sidebar:
     st.markdown("### Navigation")
     st.button("🏠 Home", use_container_width=True, disabled=True)
@@ -29,6 +111,66 @@ with st.sidebar:
     if st.button("🏨 Account BP Hotels", use_container_width=True):
         st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
     st.divider()
+
+    st.header("Sélection hôtel")
+    zone = st.selectbox(
+        "Zone",
+        ["france", "eu"],
+        key="hotel_zone",
+        format_func=format_zone_option,
+    )
+
+    hotels_df = load_hotels(zone)
+    if hotels_df.empty:
+        st.warning("Aucun dataset hôtel disponible pour cette zone.")
+    else:
+        t1 = st.number_input(
+            "Large Market threshold (M$)",
+            min_value=0.0,
+            value=500.0,
+            step=50.0,
+            key="hotel_tier_t1",
+        )
+        t2 = st.number_input(
+            "Mid-Market threshold (M$)",
+            min_value=0.0,
+            value=100.0,
+            step=25.0,
+            key="hotel_tier_t2",
+        )
+
+        if t1 < t2:
+            st.warning("Large Market threshold should be ≥ Mid-Market threshold. Adjusting automatically.")
+            t1, t2 = t2, t1
+
+        tier_ui_options = [TIER_UI[t] for t in TIER_ORDER]
+        default_internal = st.session_state.get("hotel_tier_filter", "All")
+        default_ui = TIER_UI.get(default_internal, TIER_UI["All"])
+        default_index = tier_ui_options.index(default_ui) if default_ui in tier_ui_options else 0
+
+        tier_ui = st.selectbox("Market Tier", tier_ui_options, index=default_index)
+        tier_filter = TIER_UI_INV[tier_ui]
+        st.session_state["hotel_tier_filter"] = tier_filter
+
+        hotels_tiered = add_tier(hotels_df, t1=t1, t2=t2, revenue_col="Revenue_M")
+        hotels_filtered = filter_by_tier(hotels_tiered, tier_filter)
+        hotel_names = sorted(hotels_filtered["Name"].dropna().unique().tolist())
+
+        if not hotel_names:
+            st.warning("Aucun hôtel disponible pour ce tiering.")
+        else:
+            selected_hotel = st.selectbox(
+                "Hôtel à étudier",
+                hotel_names,
+                key="selected_hotel_name",
+            )
+            selected_row = hotels_filtered.loc[hotels_filtered["Name"] == selected_hotel].head(1)
+            if not selected_row.empty:
+                revenue_value = selected_row["Revenue"].iloc[0]
+                if pd.notna(revenue_value):
+                    st.session_state["ca_total"] = float(revenue_value)
+                hq_location = selected_row.get("HQ Location", pd.Series([""])).iloc[0]
+                st.caption(f"Siège: {hq_location}" if hq_location else "Siège: n/a")
 
 # =============================================================================
 # Helpers
@@ -94,7 +236,7 @@ st.subheader("🏷️ Marques du groupe")
 nb_marques = st.number_input(
     "Nombre de marques",
     min_value=1,
-    max_value=20,
+    max_value=50,
     value=int(st.session_state.get("bp_group_nb_marques", 3)),
     step=1,
     key="bp_group_nb_marques",
@@ -432,3 +574,19 @@ if not result_df.empty:
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("Graphique indisponible (pas de données).")
+
+if st.session_state.get("bp_save_request"):
+    payload = st.session_state.pop("bp_save_request")
+    session_snapshot = {
+        key: value
+        for key, value in st.session_state.items()
+        if key.startswith("bp_group_")
+    }
+    bp_state = save_bp_state(
+        profile,
+        {
+            **payload,
+            "session_state": session_snapshot,
+        },
+    )
+    st.success("BP enregistré.")
