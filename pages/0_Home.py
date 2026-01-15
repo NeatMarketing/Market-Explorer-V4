@@ -179,14 +179,7 @@ with a2:
 st.divider()
 
 st.subheader("💾 BP en cours")
-bp_state = load_bp_state(profile)
-bp_type_labels = {
-    "Account BP Hotels": "🏨 Account BP Hotels",
-    "BP Hôtellerie": "📈 BP Hôtellerie",
-}
-bp_type_pages = {
-    "BP Hotels": "pages/3_Account_Business_Plan_Hotels.py",
-}
+bp_page_path = "pages/3_Account_Business_Plan_Hotels.py"
 
 bp_entries = list_bp_states(profile)
 
@@ -195,8 +188,6 @@ if bp_entries:
         summary_parts = [f"**BP enregistré :** {entry.get('name', 'Sans nom')}"]
         if entry.get("account"):
             summary_parts.append(f"**Compte :** {entry['account']}")
-        if entry.get("bp_type"):
-            summary_parts.append(f"**Type :** {bp_type_labels.get(entry['bp_type'], entry['bp_type'])}")
         if entry.get("updated_at"):
             summary_parts.append(f"**Dernière mise à jour :** {entry['updated_at']}")
         st.info("\n\n".join(summary_parts))
@@ -204,17 +195,10 @@ if bp_entries:
         open_col, delete_col = st.columns(2)
         with open_col:
             if st.button("Réouvrir ce BP", key=f"open_bp_{entry['id']}", use_container_width=True):
-                target_page = bp_type_pages.get(entry.get("bp_type"))
-  
-                if target_page:
+                st.session_state["bp_active_id"] = entry["id"]
 
-                    st.session_state["bp_active_id"] = entry["id"]
-
-                    st.session_state["bp_restore_request"] = True
-                    
-                    st.switch_page(target_page)
-                else:
-                    st.warning("Type de BP inconnu : impossible de réouvrir automatiquement.")
+                st.session_state["bp_restore_request"] = True
+                st.switch_page(bp_page_path)
         with delete_col:
             if st.button("Effacer le BP enregistré", key=f"delete_bp_{entry['id']}", use_container_width=True):
                 clear_bp_state(profile, entry["id"])

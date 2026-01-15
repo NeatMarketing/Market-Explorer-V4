@@ -24,14 +24,6 @@ bp_store = load_bp_state(profile) if profile else {"bps": {}, "last_opened_id": 
 active_bp_id = st.session_state.get("bp_active_id") or bp_store.get("last_opened_id")
 bp_state = get_bp_state(profile, active_bp_id) if profile and active_bp_id else {}
 
-bp_type_labels = {
-    "Account BP Hotels": "🏨 BP Hotels",
-}
-bp_type_keys = list(bp_type_labels.keys())
-bp_type_default = 0
-if bp_state.get("bp_type") in bp_type_keys:
-    bp_type_default = bp_type_keys.index(bp_state["bp_type"])
-
 if st.session_state.pop("bp_restore_request", False) and active_bp_id:
     restored = get_bp_state(profile, active_bp_id)
     if restored:
@@ -77,7 +69,7 @@ def load_hotels(zone_key: str) -> pd.DataFrame:
 with st.sidebar:
     
     st.markdown("### Navigation")
-    if st.button("🏠 Home", use_container_width=True, disabled=True):
+    if st.button("🏠 Home", use_container_width=True):
         st.switch_page("pages/0_Home.py")
     if st.button("🔎 Market Explorer", use_container_width=True):
         st.switch_page("pages/1_Market_Explorer.py")
@@ -579,10 +571,6 @@ if bp_state.get("name"):
    
         summary_parts.append(f"**Compte :** {bp_state['account']}")
        
-    if bp_state.get("bp_type"):
-        
-        summary_parts.append(f"**Type :** {bp_type_labels.get(bp_state['bp_type'], bp_state['bp_type'])}")
-            
     if bp_state.get("updated_at"):
             
         summary_parts.append(f"**Dernière mise à jour :** {bp_state['updated_at']}")
@@ -597,12 +585,6 @@ with st.form("bp_state_form_account"):
         "Compte / groupe / hôtel (optionnel)",
         value=bp_state.get("account", ""),
     )
-    bp_type = st.selectbox(
-        "Type de BP",
-        bp_type_keys,
-        index=bp_type_default,
-        format_func=lambda k: bp_type_labels.get(k, k),
-    )
     st.success("BP enregistré.")
     submitted_bp = st.form_submit_button("Enregistrer ce BP", use_container_width=True)
 
@@ -616,7 +598,6 @@ if submitted_bp:
             {
                 "name": bp_name.strip(),
                 "account": bp_account.strip(),
-                "bp_type": bp_type,
                 "session_state": session_snapshot,
             },
             bp_id=active_bp_id,
