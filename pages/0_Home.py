@@ -9,7 +9,7 @@ from market_explorer.auth import (
     logout,
     signup_enabled,
 )
-from market_explorer.bp_state import clear_bp_state, load_bp_state, save_bp_state
+from market_explorer.bp_state import clear_bp_state, list_bp_states,load_bp_state
 from market_explorer.notes import load_notes, reset_notes
 
 
@@ -192,27 +192,40 @@ bp_type_pages = {
     "BP Hôtellerie": "pages/2_Company_Business_Plan.py",
 }
 
-if bp_state.get("name"):
-    summary_parts = [f"**BP enregistré :** {bp_state['name']}"]
-    if bp_state.get("account"):
-        summary_parts.append(f"**Compte :** {bp_state['account']}")
-    if bp_state.get("bp_type"):
-        summary_parts.append(f"**Type :** {bp_type_labels.get(bp_state['bp_type'], bp_state['bp_type'])}")
-    if bp_state.get("updated_at"):
-        summary_parts.append(f"**Dernière mise à jour :** {bp_state['updated_at']}")
-    st.info("\n\n".join(summary_parts))
+bp_entries = list_bp_states(profile)
 
-    if st.button("Réouvrir ce BP", use_container_width=True):
-        target_page = bp_type_pages.get(bp_state.get("bp_type"))
-        if target_page:
-            st.switch_page(target_page)
-        else:
-            st.warning("Type de BP inconnu : impossible de réouvrir automatiquement.")
+if bp_entries:
+    for entry in bp_entries:
+        summary_parts = [f"**BP enregistré :** {entry.get('name', 'Sans nom')}"]
+        if entry.get("account"):
+            summary_parts.append(f"**Compte :** {entry['account']}")
+        if entry.get("bp_type"):
+            summary_parts.append(f"**Type :** {bp_type_labels.get(entry['bp_type'], entry['bp_type'])}")
+        if entry.get("updated_at"):
+            summary_parts.append(f"**Dernière mise à jour :** {entry['updated_at']}")
+        st.info("\n\n".join(summary_parts))
+        
+        open_col, delete_col = st.columns(2)
+        with open_col:
+            if st.button("Réouvrir ce BP", key=f"open_bp_{entry['id']}", use_container_width=True):
+                target_page = bp_type_pages.get(entry.get("bp_type"))
+  
+                if target_page:
 
-    if st.button("Effacer le BP enregistré", use_container_width=True):
-        clear_bp_state(profile)
-        st.success("BP supprimé.")
-        st.rerun()
+                    st.session_state["bp_active_id"] = entry["id"]
+
+                    st.session_state["bp_restore_request"] = True
+                    
+                    st.switch_page(target_page)
+                else:
+                    st.warning("Type de BP inconnu : impossible de réouvrir automatiquement.")
+        with delete_col:
+            if st.button("Effacer le BP enregistré", key=f"delete_bp_{entry['id']}", use_container_width=True):
+                clear_bp_state(profile, entry["id"])
+                st.success("BP supprimé.")
+                st.rerun()
+        st.divider()
+
 else:
     st.caption("Aucun BP enregistré pour le moment. Enregistrez-le depuis l'onglet BP correspondant.")
 

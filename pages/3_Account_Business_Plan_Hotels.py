@@ -5,11 +5,12 @@ import pandas as pd
 import plotly.express as px
 
 from market_explorer.tiering import add_tier, filter_by_tier
-from market_explorer.bp_state import load_bp_state, save_bp_state
+from market_explorer.bp_state import get_bp_state, load_bp_state, save_bp_state
 
 # =============================================================================
 # Page config
 # =============================================================================
+
 st.set_page_config(
     page_title="Business Plan Hotels — Groupe",
     layout="wide",
@@ -19,7 +20,10 @@ st.title("🏨 Business Plan Hotels — Groupe (MVP)")
 st.caption("MVP sales-friendly pour groupes multi-marques. Calculs simples, robustes et transparents.")
 
 profile = st.session_state.get("profile", "user")
-bp_state = load_bp_state(profile) if profile else {}
+bp_store = load_bp_state(profile) if profile else {"bps": {}, "last_opened_id": None}
+active_bp_id = st.session_state.get("bp_active_id") or bp_store.get("last_opened_id")
+bp_state = get_bp_state(profile, active_bp_id) if profile and active_bp_id else {}
+
 bp_type_labels = {
     "Account BP Hotels": "🏨 Account BP Hotels",
     "BP Hôtellerie": "📈 BP Hôtellerie",
@@ -29,48 +33,16 @@ bp_type_default = 0
 if bp_state.get("bp_type") in bp_type_keys:
     bp_type_default = bp_type_keys.index(bp_state["bp_type"])
 
-with st.form("bp_state_form_account"):
-    st.subheader("💾 Enregistrer le BP en cours")
-    bp_name = st.text_input("Nom du BP", value=bp_state.get("name", ""))
-    bp_account = st.text_input(
-        "Compte / groupe / hôtel (optionnel)",
-        value=bp_state.get("account", ""),
-    )
-    bp_type = st.selectbox(
-        "Type de BP",
-        bp_type_keys,
-        index=bp_type_default,
-        format_func=lambda k: bp_type_labels.get(k, k),
-    )
-    submitted_bp = st.form_submit_button("Enregistrer ce BP", use_container_width=True)
+if st.session_state.pop("bp_restore_request", False) and active_bp_id:
+    restored = get_bp_state(profile, active_bp_id)
+    if restored:
 
-if submitted_bp:
-    if not bp_name.strip():
-        st.error("Merci de renseigner un nom de BP.")
-    else:
-        bp_state = save_bp_state(
-            profile,
-            {
-                "name": bp_name.strip(),
-                "account": bp_account.strip(),
-                "bp_type": bp_type,
-            },
-        )
-        st.success("BP enregistré.")
+        for key, value in (restored.get("session_state") or {}).items():
+            st.session_state[key] = value
 
-if bp_state.get("name"):
-    summary_parts = [f"**BP en cours :** {bp_state['name']}"]
-    if bp_state.get("account"):
-        summary_parts.append(f"**Compte :** {bp_state['account']}")
-    if bp_state.get("bp_type"):
-        summary_parts.append(f"**Type :** {bp_type_labels.get(bp_state['bp_type'], bp_state['bp_type'])}")
-    if bp_state.get("updated_at"):
-        summary_parts.append(f"**Dernière mise à jour :** {bp_state['updated_at']}")
-    st.info("\n\n".join(summary_parts))
-else:
-    st.info("Aucun BP enregistré. Utilisez le formulaire ci-dessus pour en sauvegarder un.")
-    
-st.divider()
+        st.session_state["bp_active_id"] = active_bp_id
+        bp_state = restored
+        st.success("BP rechargé.")
 
 # =============================================================================
 # Sidebar
@@ -191,6 +163,26 @@ def normalize_shares(raw_shares: list[float]) -> list[float]:
 
 def fmt_money(value: float) -> str:
     return f"{value:,.0f} €".replace(",", " ")
+
+SAVE_STATE_PREFIXES = ("bp_group_",)
+SAVE_STATE_KEYS = {
+    "hotel_zone",
+    "hotel_tier_t1",
+    "hotel_tier_t2",
+    "hotel_tier_filter",
+    "selected_hotel_name",
+    "ca_total",
+    "CA_total",
+}
+
+
+def capture_bp_session_state() -> dict:
+    session_snapshot = {
+        key: value
+        for key, value in st.session_state.items()
+        if key.startswith(SAVE_STATE_PREFIXES) or key in SAVE_STATE_KEYS
+    }
+    return session_snapshot
 
 # =============================================================================
 # Inputs — Type d'entreprise
@@ -575,18 +567,59 @@ if not result_df.empty:
 else:
     st.info("Graphique indisponible (pas de données).")
 
-if st.session_state.get("bp_save_request"):
-    payload = st.session_state.pop("bp_save_request")
-    session_snapshot = {
-        key: value
-        for key, value in st.session_state.items()
-        if key.startswith("bp_group_")
-    }
-    bp_state = save_bp_state(
-        profile,
-        {
-            **payload,
-            "session_state": session_snapshot,
-        },
+st.divider()
+
+st.subheader("💾 Enregistrer le BP en cours")
+
+if bp_state.get("name"):
+
+    summary_parts = [f"**BP en cours :** {bp_state['name']}"]
+
+    if bp_state.get("account"):
+   
+        summary_parts.append(f"**Compte :** {bp_state['account']}")
+       
+    if bp_state.get("bp_type"):
+        
+        summary_parts.append(f"**Type :** {bp_type_labels.get(bp_state['bp_type'], bp_state['bp_type'])}")
+            
+    if bp_state.get("updated_at"):
+            
+        summary_parts.append(f"**Dernière mise à jour :** {bp_state['updated_at']}")
+   
+    st.info("\n\n".join(summary_parts))
+else:
+    st.caption("Aucun BP enregistré. Utilisez le formulaire ci-dessous pour en sauvegarder un.")
+
+with st.form("bp_state_form_account"):
+    bp_name = st.text_input("Nom du BP", value=bp_state.get("name", ""))
+    bp_account = st.text_input(
+        "Compte / groupe / hôtel (optionnel)",
+        value=bp_state.get("account", ""),
+    )
+    bp_type = st.selectbox(
+        "Type de BP",
+        bp_type_keys,
+        index=bp_type_default,
+        format_func=lambda k: bp_type_labels.get(k, k),
     )
     st.success("BP enregistré.")
+    submitted_bp = st.form_submit_button("Enregistrer ce BP", use_container_width=True)
+
+if submitted_bp:
+    if not bp_name.strip():
+        st.error("Merci de renseigner un nom de BP.")
+    else:
+        session_snapshot = capture_bp_session_state()
+        bp_state = save_bp_state(
+            profile,
+            {
+                "name": bp_name.strip(),
+                "account": bp_account.strip(),
+                "bp_type": bp_type,
+                "session_state": session_snapshot,
+            },
+            bp_id=active_bp_id,
+        )
+        st.session_state["bp_active_id"] = bp_state["id"]
+        st.success("BP enregistré.")
