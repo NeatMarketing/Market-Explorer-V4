@@ -325,6 +325,8 @@ def require_auth() -> None:
     """
     if not login_required():
         st.error("You must be signed in to access this page.")
+        if st.button("Sign in", type="primary"):
+            st.switch_page("pages/0_Home.py")
         st.stop()
 
 

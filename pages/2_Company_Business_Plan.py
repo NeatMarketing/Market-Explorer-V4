@@ -268,18 +268,17 @@ if not hotel_ds:
     st.error("No HOTEL dataset found (vertical 'hotel').")
     st.stop()
 
-
 # =============================================================================
 # Sidebar: navigation + zone + load df + scope settings
 # =============================================================================
 
 with st.sidebar:
     st.markdown("### Navigation")
-    st.button("🏠 Home", use_container_width=True, disabled=True)
+    if st.button("🏠 Home", use_container_width=True):
+        st.switch_page("pages/0_Home.py")
     if st.button("🔎 Market Explorer", use_container_width=True):
         st.switch_page("pages/1_Market_Explorer.py")
-    if st.button("📈 BP Hôtellerie", use_container_width=True):
-        st.switch_page("pages/2_Company_Business_Plan.py")
+    st.button("📈 BP Hôtellerie", use_container_width=True, disabled=True)
     if st.button("🏨 Account BP Hotels", use_container_width=True):
         st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
     st.divider()
