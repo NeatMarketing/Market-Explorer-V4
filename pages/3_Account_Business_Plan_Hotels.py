@@ -25,8 +25,7 @@ active_bp_id = st.session_state.get("bp_active_id") or bp_store.get("last_opened
 bp_state = get_bp_state(profile, active_bp_id) if profile and active_bp_id else {}
 
 bp_type_labels = {
-    "Account BP Hotels": "🏨 Account BP Hotels",
-    "BP Hôtellerie": "📈 BP Hôtellerie",
+    "Account BP Hotels": "🏨 BP Hotels",
 }
 bp_type_keys = list(bp_type_labels.keys())
 bp_type_default = 0
@@ -47,6 +46,7 @@ if st.session_state.pop("bp_restore_request", False) and active_bp_id:
 # =============================================================================
 # Sidebar
 # =============================================================================
+
 DATA_DIR = Path(__file__).resolve().parents[1] / "Data_Clean"
 
 TIER_ORDER = ["All", "Tier 1", "Tier 2", "Tier 3"]
@@ -67,6 +67,7 @@ def format_zone_option(value: str) -> str:
     return ZONE_LABELS.get(str(value).strip().lower(), str(value))
 
 @st.cache_data(show_spinner=False)
+
 def load_hotels(zone_key: str) -> pd.DataFrame:
     dataset_path = DATA_DIR / f"travel_hotel_{zone_key}_cleaned.csv"
     if not dataset_path.exists():
@@ -74,16 +75,15 @@ def load_hotels(zone_key: str) -> pd.DataFrame:
     return pd.read_csv(dataset_path)
     
 with st.sidebar:
+    
     st.markdown("### Navigation")
-    st.button("🏠 Home", use_container_width=True, disabled=True)
+    if st.button("🏠 Home", use_container_width=True, disabled=True):
+        st.switch_page("pages/0_Home.py")
     if st.button("🔎 Market Explorer", use_container_width=True):
         st.switch_page("pages/1_Market_Explorer.py")
-    if st.button("📈 BP Hôtellerie", use_container_width=True):
-        st.switch_page("pages/2_Company_Business_Plan.py")
-    if st.button("🏨 Account BP Hotels", use_container_width=True):
-        st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
+    st.button("🏨 BP Hotels", use_container_width=True, disabled=True)
     st.divider()
-
+    
     st.header("Sélection hôtel")
     zone = st.selectbox(
         "Zone",

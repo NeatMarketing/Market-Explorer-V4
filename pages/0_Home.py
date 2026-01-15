@@ -45,12 +45,9 @@ with st.sidebar:
     st.button("🏠 Home", use_container_width=True, disabled=True)
     if st.button("🔎 Market Explorer", use_container_width=True):
         st.switch_page("pages/1_Market_Explorer.py")
-    if st.button("📈 BP Hôtellerie", use_container_width=True):
-        st.switch_page("pages/2_Company_Business_Plan.py")
-    if st.button("🏨 Account BP Hotels", use_container_width=True):
+    if st.button("🏨 BP Hotels", use_container_width=True):
         st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
     st.divider()
-
 
 st.title("Market Explorer")
 st.caption("Internal market intelligence tool — explore markets, shortlist accounts, export target lists, and build business plans.")
@@ -174,10 +171,10 @@ with a1:
         st.switch_page("pages/1_Market_Explorer.py")
 
 with a2:
-    st.write("**📈 BP Hôtellerie **")
+    st.write("🏨 Account BP Hotels")
     st.caption("Build assumptions and compute business plan outputs for hotels.")
-    if st.button("Open BP Hôtellerie →", use_container_width=True):
-        st.switch_page("pages/2_Company_Business_Plan.py")
+    if st.button("Open Account BP Hotels ->", use_container_width = True):
+        st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
 
 st.divider()
 
@@ -188,8 +185,7 @@ bp_type_labels = {
     "BP Hôtellerie": "📈 BP Hôtellerie",
 }
 bp_type_pages = {
-    "Account BP Hotels": "pages/3_Account_Business_Plan_Hotels.py",
-    "BP Hôtellerie": "pages/2_Company_Business_Plan.py",
+    "BP Hotels": "pages/3_Account_Business_Plan_Hotels.py",
 }
 
 bp_entries = list_bp_states(profile)
