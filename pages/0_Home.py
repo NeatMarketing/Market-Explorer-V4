@@ -25,7 +25,7 @@ st.set_page_config(page_title="Market Explorer – Home", page_icon="🏠", layo
 st.markdown(
     """
 <style>
-.block-container { padding-top: 2rem; max-width: 1100px; }
+.block-container { padding-top: 2rem;}
 .small-muted { color: rgba(0,0,0,.55); font-size: 0.9rem; }
 .badge { display:inline-block; padding: 4px 10px; border-radius: 999px;
          background: rgba(255, 0, 128, 0.08); border: 1px solid rgba(255, 0, 128, 0.18);

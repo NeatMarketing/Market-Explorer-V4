@@ -16,14 +16,15 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("🏨 Business Plan Hotels — Groupe (MVP)")
+st.title("Business Plan Hotels — Groupe (MVP)")
 st.caption("MVP sales-friendly pour groupes multi-marques. Calculs simples, robustes et transparents.")
 
 profile = st.session_state.get("profile", "user")
 bp_store = load_bp_state(profile) if profile else {"bps": {}, "last_opened_id": None}
 active_bp_id = st.session_state.get("bp_active_id") or bp_store.get("last_opened_id")
 bp_state = get_bp_state(profile, active_bp_id) if profile and active_bp_id else {}
-
+if bp_state is None:
+    bp_state = {}
 if st.session_state.pop("bp_restore_request", False) and active_bp_id:
     restored = get_bp_state(profile, active_bp_id)
     if restored:
@@ -34,6 +35,8 @@ if st.session_state.pop("bp_restore_request", False) and active_bp_id:
         st.session_state["bp_active_id"] = active_bp_id
         bp_state = restored
         st.success("BP rechargé.")
+    else:
+        bp_state = {}
 
 # =============================================================================
 # Sidebar

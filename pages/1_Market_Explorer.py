@@ -121,6 +121,7 @@ with tab_explorer:
     # Sidebar: Scope + Tiering
     # -----------------------
     with st.sidebar:
+        
         st.markdown("### Navigation")
         if st.button("🏠 Home", use_container_width=True):
             st.switch_page("pages/0_Home.py")

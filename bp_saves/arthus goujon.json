@@ -1,4 +1,31 @@
 {
-  "bps": {},
-  "last_opened_id": null
+  "bps": {
+    "df4aca56539049b0bdd6950889001bcf": {
+      "name": "Sofitel",
+      "account": "Sofitel",
+      "session_state": {
+        "hotel_tier_filter": "Tier 1",
+        "bp_group_taux_remplissage": 80.0,
+        "bp_group_brand_name_1": "Sofitel",
+        "bp_group_taux_prime": 6.0,
+        "bp_group_brand_share_1": 100.0,
+        "bp_group_brand_hotels_1": 124,
+        "hotel_tier_t1": 500.0,
+        "ca_total": 4614596102.0,
+        "hotel_zone": "france",
+        "bp_group_heberg_override": false,
+        "hotel_tier_t2": 100.0,
+        "bp_group_nb_marques": 1,
+        "selected_hotel_name": "Sofitel",
+        "bp_group_taux_prise": 16.0,
+        "bp_group_hotellerie_override": false,
+        "bp_group_pct_hebergement": 70.0,
+        "bp_group_nb_chambres": 260,
+        "bp_group_duree_sejour": 1.5
+      },
+      "id": "df4aca56539049b0bdd6950889001bcf",
+      "updated_at": "2026-01-15 16:28"
+    }
+  },
+  "last_opened_id": "df4aca56539049b0bdd6950889001bcf"
 }
