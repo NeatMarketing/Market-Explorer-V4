@@ -1,5 +1,6 @@
 """
 Business plan state storage per profile.
+
 """
 
 from __future__ import annotations

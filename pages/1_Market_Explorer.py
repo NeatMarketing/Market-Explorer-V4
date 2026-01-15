@@ -38,10 +38,9 @@ from market_explorer.notes import (
 # =============================================================================
 # Auth guard
 # =============================================================================
+
 require_auth()
 profile = st.session_state.get("profile")
-
-
 
 # =============================================================================
 # Paths / catalog
@@ -99,6 +98,20 @@ ZONE_LABELS = {
 def format_zone_option(value) -> str:
     normalized = str(value).strip().lower()
     return ZONE_LABELS.get(normalized, zone_label_ui(value))
+
+def get_company_context_row(row: pd.Series) -> dict:
+    company_id = row.get("Company ID")
+    if pd.isna(company_id) or str(company_id).strip() == "":
+        company_id = company_key(str(row["Name"]), str(row.get("Country", "")))
+    return {
+        "company_id": str(company_id),
+        "company_name": str(row["Name"]),
+        "country": str(row.get("Country", "")),
+    }
+
+def company_label(row: pd.Series) -> str:
+    label_country = str(row.get("Country", "")).strip()
+    return f"{row['Name']} ({label_country})" if label_country else str(row["Name"])
 
 # =============================================================================
 # Session state defaults
@@ -558,6 +571,67 @@ with tab_explorer:
         file_name=f"targets_{export_tag}_{zone}.csv",
         mime="text/csv",
     )
+
+    # -----------------------
+    # Create Business Plan
+    # -----------------------
+    st.markdown("### 🚀 Créer un BP (Hôtel)")
+
+    selected_row_for_bp = None
+    selected_label_for_bp = None
+
+    if event is not None and getattr(event, "selection", None):
+        rows = event.selection.get("rows", [])
+        if rows:
+            i = rows[0]
+            selected_row_for_bp = target.iloc[i]
+            selected_label_for_bp = company_label(selected_row_for_bp)
+            st.session_state["bp_selected_company_option"] = selected_label_for_bp
+
+    company_options = []
+    option_to_row = {}
+    for _, row in target.iterrows():
+        label = company_label(row)
+        company_options.append(label)
+        option_to_row[label] = row
+
+    if not company_options:
+        st.info("Aucune entreprise disponible pour créer un BP avec les filtres actuels.")
+    else:
+        selected_label = st.selectbox(
+            "Choisir une entreprise",
+            company_options,
+            key="bp_selected_company_option",
+        )
+        selected_row_for_bp = option_to_row.get(selected_label)
+
+    can_create_bp = selected_row_for_bp is not None
+
+    if st.button("🚀 Créer un BP (Hôtel)", use_container_width=True, disabled=not can_create_bp):
+        if not can_create_bp:
+            st.warning("Veuillez sélectionner une entreprise avant de créer un BP.")
+        else:
+            context = get_company_context_row(selected_row_for_bp)
+            dataset_label = (
+                match[0].path.name
+                if len(match) == 1
+                else ", ".join(sorted({d.path.name for d in match}))
+            )
+            st.session_state["bp_context"] = {
+                **context,
+                "dataset": dataset_label,
+                "tiering": tier_filter,
+                "zone": zone,
+                "market": market,
+                "vertical": vertical,
+                "source": "market_explorer",
+            }
+            try:
+                st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
+            except Exception:
+                st.session_state["current_page"] = "bp_hotels"
+                st.rerun()
+
 
     # -----------------------
     # Notes editor (click row -> edit)

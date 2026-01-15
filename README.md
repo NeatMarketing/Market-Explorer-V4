@@ -1,12 +1,12 @@
 Market Explorer : Neat
 
-Market Explorer is an internal data application designed to help Sales and Strategy teams quickly understand market size, structure, and priorities across zones and verticals.
+Application interne de data conçue pour aider les équipes Sales & Strategy à comprendre rapidement la taille, la structure et les priorités des marchés par zones et verticales.
 
-The tool provides a clear, visual, and actionable view of markets, enabling better commercial discussions and go-to-market decisions.
+L’outil fournit une vue claire, visuelle et actionnable des marchés pour faciliter les discussions commerciales et les décisions go-to-market.
 
 ---
 
-Key features : 
+## Fonctionnalités clés
 
 - Zone & Vertical filtering
 - Market KPIs (total market size, number of companies, etc.)
@@ -17,7 +17,7 @@ Key features :
 
 ---
 
-Structure du Projet : 
+## Structure du projet
 
 ```
 Market_Sizing/
@@ -42,21 +42,46 @@ Market_Sizing/
 ```
 
 Comment faire fonctionner l'app ? : 
+---
+
+## Prérequis
+
+- Python 3.10+
+- pip
 
 Se placer au niveau du dossier dans le terminal : 
+---
 
 cd "Neat/MARKETING SH - Documents/Market_Sizing"
 
-Télécharger les requirements : 
+## Installation
 
+Depuis la racine du dépôt :
+
+```bash
 pip install -r requirements.txt
+```
 
+---
 
-Lancer l'application : 
+## Lancer l’application
 
+```bash
 streamlit run app.py
+```
+L’application s’ouvrira automatiquement dans votre navigateur.
 
-The app will open automatically in your browser.
+---
 
+## Accès distant (optionnel)
 
+```bash
 cloudflared tunnel --url http://localhost:8501
+```
+
+---
+
+## Notes
+
+- Les données brutes sont stockées dans `Data/` et les fichiers nettoyés dans `Data_Clean/`.
+- Les pages Streamlit doivent rester en minuscules dans le dossier `pages/`.

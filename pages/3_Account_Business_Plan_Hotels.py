@@ -4,8 +4,16 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+from market_explorer.auth import require_auth
 from market_explorer.tiering import add_tier, filter_by_tier
 from market_explorer.bp_state import get_bp_state, load_bp_state, save_bp_state
+
+# =============================================================================
+# Auth guard
+# =============================================================================
+
+require_auth()
+profile = st.session_state.get("profile")
 
 # =============================================================================
 # Page config
@@ -20,6 +28,22 @@ st.title("Business Plan Hotels — Groupe (MVP)")
 st.caption("MVP sales-friendly pour groupes multi-marques. Calculs simples, robustes et transparents.")
 
 profile = st.session_state.get("profile", "user")
+
+bp_context = st.session_state.get("bp_context") if isinstance(st.session_state.get("bp_context"), dict) else {}
+bp_context_company_name = bp_context.get("company_name")
+bp_context_company_id = bp_context.get("company_id")
+
+if bp_context_company_name:
+    banner_col, banner_action = st.columns([4, 1])
+    with banner_col:
+        st.info(f"Entreprise sélectionnée depuis Market Explorer: **{bp_context_company_name}**")
+    with banner_action:
+        if st.button("Changer", use_container_width=True):
+            st.session_state.pop("bp_context", None)
+            st.session_state.pop("bp_context_key", None)
+            st.session_state.pop("selected_hotel_name", None)
+            st.rerun()
+            
 bp_store = load_bp_state(profile) if profile else {"bps": {}, "last_opened_id": None}
 active_bp_id = st.session_state.get("bp_active_id") or bp_store.get("last_opened_id")
 bp_state = get_bp_state(profile, active_bp_id) if profile and active_bp_id else {}
@@ -57,6 +81,10 @@ ZONE_LABELS = {
     "france": "France",
     "eu": "Europe",
 }
+ZONE_DATASET_MAP = {
+    "france": "france",
+    "eu": "europe",
+}
 
 def format_zone_option(value: str) -> str:
     return ZONE_LABELS.get(str(value).strip().lower(), str(value))
@@ -64,7 +92,8 @@ def format_zone_option(value: str) -> str:
 @st.cache_data(show_spinner=False)
 
 def load_hotels(zone_key: str) -> pd.DataFrame:
-    dataset_path = DATA_DIR / f"travel_hotel_{zone_key}_cleaned.csv"
+    dataset_key = ZONE_DATASET_MAP.get(str(zone_key).strip().lower(), zone_key)
+    dataset_path = DATA_DIR / f"travel_hotel_{dataset_key}_cleaned.csv"
     if not dataset_path.exists():
         return pd.DataFrame()
     return pd.read_csv(dataset_path)
@@ -126,6 +155,20 @@ with st.sidebar:
         if not hotel_names:
             st.warning("Aucun hôtel disponible pour ce tiering.")
         else:
+            context_match = None
+            if bp_context_company_name:
+                normalized_map = {str(name).strip().lower(): name for name in hotel_names}
+                context_match = normalized_map.get(str(bp_context_company_name).strip().lower())
+                context_key = (bp_context_company_id, str(bp_context_company_name))
+                if st.session_state.get("bp_context_key") != context_key:
+                    st.session_state["bp_context_key"] = context_key
+                    if context_match:
+                        st.session_state["selected_hotel_name"] = context_match
+
+            if bp_context_company_name and not context_match:
+                st.warning(
+                    "L'entreprise sélectionnée depuis Market Explorer n'est pas disponible avec les filtres actuels."
+                )
             selected_hotel = st.selectbox(
                 "Hôtel à étudier",
                 hotel_names,
@@ -138,6 +181,11 @@ with st.sidebar:
                     st.session_state["ca_total"] = float(revenue_value)
                 hq_location = selected_row.get("HQ Location", pd.Series([""])).iloc[0]
                 st.caption(f"Siège: {hq_location}" if hq_location else "Siège: n/a")
+        if st.button("🔄 Réinitialiser la sélection", use_container_width=True):
+            st.session_state.pop("bp_context", None)
+            st.session_state.pop("bp_context_key", None)
+            st.session_state.pop("selected_hotel_name", None)
+            st.rerun()
 
 # =============================================================================
 # Helpers
@@ -445,19 +493,19 @@ for brand, share_norm in zip(brand_inputs, normalized_shares):
 
     ca_marque = ca_total * (share_norm / 100.0)
     ca_hotel_total = safe_div(ca_marque, nb_hotels) if nb_hotels > 0 else 0.0
+    
+    #if nb_hotels == 0:
+        #warnings.append(f"{brand_name}: nombre d'hôtels = 0 → CA/hôtel à 0.")
 
-    if nb_hotels == 0:
-        warnings.append(f"{brand_name}: nombre d'hôtels = 0 → CA/hôtel à 0.")
+    #if nb_chambres <= 0:
+        #warnings.append(f"{brand_name}: chambres moyennes ≤ 0 → nuitées/ADR à 0.")
 
-    if nb_chambres <= 0:
-        warnings.append(f"{brand_name}: chambres moyennes ≤ 0 → nuitées/ADR à 0.")
+    #if taux_remplissage < 0 or taux_remplissage > 100:
+        #warnings.append(f"{brand_name}: taux de remplissage hors [0,100].")
 
-    if taux_remplissage < 0 or taux_remplissage > 100:
-        warnings.append(f"{brand_name}: taux de remplissage hors [0,100].")
-
-    if duree_sejour < 1:
-        warnings.append(f"{brand_name}: durée séjour < 1 nuit.")
-
+    #if duree_sejour < 1:
+        #warnings.append(f"{brand_name}: durée séjour < 1 nuit.")
+    
     ca_hebergement_hotel = ca_hotel_total * (pct_hebergement / 100.0)
 
     nuitees = max(nb_chambres, 0) * 365 * (max(taux_remplissage, 0) / 100.0)

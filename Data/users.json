@@ -13,5 +13,10 @@
     "created_at": 1768376111,
     "password_hash": "pbkdf2_sha256$390000$NcGcNN6AcNQ-Wo8QVH18mQ$_qGM-YN2aprYpZL0WzRVjheRU8XZ_s7pgR1DhgBHNQ4",
     "role": "Manager"
+  },
+  "mathieu anais": {
+    "created_at": 1768492903,
+    "password_hash": "pbkdf2_sha256$390000$bhnW2Cq4iwVzr5salxPI8Q$8p7Ce-xknaSVg8jIHZv4kaa65u4O9-uoomRJMOf6Gjw",
+    "role": "Manager"
   }
 }
