@@ -28,6 +28,14 @@ from market_explorer.labels import (
     zones_in_scope_from_ui,
 )
 
+from market_explorer.market_explorer_helpers import (
+    company_label,
+    compute_bp_simple,
+    fmt_money,
+    format_zone_option,
+    get_company_context_row,
+)
+
 from market_explorer.notes import (
     load_notes,
     save_notes,
@@ -35,6 +43,19 @@ from market_explorer.notes import (
     upsert_note,
 )
 
+FRANCE_OVERSEAS = [
+    "Guadeloupe",
+    "Martinique",
+    "Guyana",
+    "Réunion",
+    "French Polynesia",
+    "New Caledonia",
+    "Mayotte",
+    "Saint Pierre and Miquelon",
+    "Wallis and Futuna",
+    "Saint Martin",
+    "Saint Barthélemy",
+]
 # =============================================================================
 # Auth guard
 # =============================================================================
@@ -83,36 +104,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-def fmt_money(value: float) -> str:
-    return f"{value:,.1f} M$".replace(",", " ")
-
 st.title("Market Explorer (Internal)")
 
 tab_explorer, tab_overview = st.tabs(["Market Explorer", "Market Overview"])
-
-ZONE_LABELS = {
-    "france": "France",
-    "eu": "Europe",
-    "eu_fr": "Europe + France",
-}
-
-def format_zone_option(value) -> str:
-    normalized = str(value).strip().lower()
-    return ZONE_LABELS.get(normalized, zone_label_ui(value))
-
-def get_company_context_row(row: pd.Series) -> dict:
-    company_id = row.get("Company ID")
-    if pd.isna(company_id) or str(company_id).strip() == "":
-        company_id = company_key(str(row["Name"]), str(row.get("Country", "")))
-    return {
-        "company_id": str(company_id),
-        "company_name": str(row["Name"]),
-        "country": str(row.get("Country", "")),
-    }
-
-def company_label(row: pd.Series) -> str:
-    label_country = str(row.get("Country", "")).strip()
-    return f"{row['Name']} ({label_country})" if label_country else str(row["Name"])
 
 # =============================================================================
 # Session state defaults
@@ -363,6 +357,12 @@ with tab_explorer:
     
     if zone == "france":
         country_f = None
+    elif zone == "eu_fr" and country:
+        selected_countries = list(country)
+        if "France" in selected_countries:
+            country_f = sorted(set(selected_countries) | set(["France"] + FRANCE_OVERSEAS))
+        else:
+            country_f = selected_countries
     else:
         country_f = None if not country else list(country)
     company_type_f = None if company_type == "All" else [company_type]
@@ -548,31 +548,6 @@ with tab_explorer:
 # -----------------------
 
     st.subheader("BP Général — Premium & Commission (3 ans)")
-    def compute_bp_simple(
-        hotel_rev_y1: float,
-        market_growth: float,
-        direct_rate: float,
-        take_rate: float,
-        price_rate: float,
-        neat_commission: float,
-    ) -> pd.DataFrame:
-        years = [1, 2, 3]
-        rows = []
-        for y in years:
-            hotel_rev = hotel_rev_y1 * ((1 + market_growth) ** (y - 1))
-            direct_rev = hotel_rev * direct_rate
-            premium = direct_rev * take_rate * price_rate
-            neat_rev = premium * neat_commission
-            rows.append(
-                {
-                    "Year": f"Année {y}",
-                    "Hotel revenue (M$)": hotel_rev,
-                    "Direct revenue (M$)": direct_rev,
-                    "Premium (M$)": premium,
-                    "Neat revenue (M$)": neat_rev,
-                }
-            )
-        return pd.DataFrame(rows)
 
     # Default base: your filtered revenue KPI (already in M$)
     base_hotel_rev_m = float(kpis.get("total_rev_m", 0.0))
@@ -648,9 +623,9 @@ with tab_explorer:
     # KPI cards (Year 3)
     year3 = df_bp.iloc[-1]
     k1, k2, k3 = st.columns(3)
-    k1.metric("Premium (Année 3)", fmt_money(float(year3["Premium (M$)"])))
-    k2.metric("Neat revenue (Année 3)", fmt_money(float(year3["Neat revenue (M$)"])))
-    k3.metric("Hotel revenue (Année 3)", fmt_money(float(year3["Hotel revenue (M$)"])))
+    k1.metric("Premium (Year 3)", fmt_money(float(year3["Premium (M$)"])))
+    k2.metric("Neat revenue (Year 3)", fmt_money(float(year3["Neat revenue (M$)"])))
+    k3.metric("Hotel revenue (Year 3)", fmt_money(float(year3["Hotel revenue (M$)"])))
 
     # Chart (thicker + nicer)
     fig_bp = px.line(
@@ -658,7 +633,7 @@ with tab_explorer:
         x="Year",
         y=["Premium (M$)", "Neat revenue (M$)"],
         markers=True,
-        labels={"value": "Montant (M$)", "variable": ""},
+        labels={"value": "Amount (M$)", "variable": ""},
         color_discrete_sequence=[C_FONCE, C_ROSE],
     )
 
@@ -680,14 +655,6 @@ with tab_explorer:
     )
 
     st.plotly_chart(fig_bp, use_container_width=True)
-
-    with st.expander("Assumptions (simple)"):
-        st.markdown(
-            "- Hotel revenue grows each year with market growth.\n"
-            "- Only Direct share is considered for insurance distribution.\n"
-            "- Premium = Direct revenue × Take Rate × Price.\n"
-            "- Neat revenue = Premium × Neat commission.\n"
-        )
 
     st.divider()
 
