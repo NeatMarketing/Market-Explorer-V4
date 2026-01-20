@@ -319,7 +319,19 @@ with tab_explorer:
                 step=float(step),
             )
     
-        country = st.selectbox("Country", ["All"] + countries, index=0)
+        if zone == "france":
+            country = st.selectbox("Country", ["All"] + countries, index=0)
+        else:
+            all_countries_selected = st.checkbox("All countries", value=True)
+            if all_countries_selected:
+                country = countries
+            else:
+                country = st.multiselect(
+                    "Countries",
+                    countries,
+                    default=countries[: min(len(countries), 5)],
+                )
+        
         company_type = st.selectbox("Company Type", ["All"] + company_types, index=0)
         sector = st.selectbox("Sector", ["All"] + sectors, index=0)
     
@@ -337,7 +349,11 @@ with tab_explorer:
     # -----------------------
     # IMPORTANT: UI uses "All" as a sentinel meaning "no filter".
     # analytics.apply_filters expects None (or an empty iterable) to disable a filter.
-    country_f = None if country == "All" else [country]
+    
+    if zone == "france":
+        country_f = None if country == "All" else [country]
+    else:
+        country_f = None if not country else list(country)
     company_type_f = None if company_type == "All" else [company_type]
     sector_f = None if sector == "All" else [sector]
 
