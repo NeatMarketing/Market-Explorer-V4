@@ -61,6 +61,7 @@ if not datasets_all:
 C_FONCE = "#41072A"
 C_ROSE = "#FF85C8"
 C_WHITE = "#FFFFFF"
+C_CLAIR = "#F2C5DA"
 
 TIER_ORDER = ["All", "Tier 1", "Tier 2", "Tier 3"]
 
@@ -81,6 +82,9 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+def fmt_money(value: float) -> str:
+    return f"{value:,.1f} M$".replace(",", " ")
 
 st.title("Market Explorer (Internal)")
 
@@ -545,83 +549,162 @@ with tab_explorer:
         st.subheader("BP Général — Premium & Commission (3 ans)")
         st.caption(
             "Projection basée sur le revenu cumulé filtré (zone + tiering + filtres actuels). "
-            "Les pourcentages ci-dessous s'appliquent au revenu."
+            "Le modèle suit un funnel causal : volume → éligibilité → adoption → pricing → premium → commission."
         )
 
+        def compute_projection(
+            base_volume: float,
+            g: float,
+            eligible_rate: float,
+            direct_rate: float,
+            optin_rate: float,
+            direct_uplift: float,
+            price_rate: float,
+            commission_rate: float,
+        ) -> pd.DataFrame:
+            """Compute 3-year projection using a causal insurance funnel."""
+            years = [1, 2, 3]
+            rows = []
+            for year in years:
+                volume = base_volume * ((1 + g) ** (year - 1))
+                effective_optin = optin_rate * (1 + direct_rate * direct_uplift)
+                effective_optin = min(max(effective_optin, 0.0), 1.0)
+                policies = volume * eligible_rate * effective_optin
+                premium_gross = policies * price_rate
+                commission_net = premium_gross * commission_rate
+                rows.append(
+                    {
+                        "year": f"Année {year}",
+                        "volume": volume,
+                        "effective_optin": effective_optin,
+                        "policies": policies,
+                        "premium_gross": premium_gross,
+                        "commission_net": commission_net,
+                    }
+                )
+            return pd.DataFrame(rows)
+
+        base_volume_m = float(kpis.get("total_rev_m", 0.0))
         bp_col1, bp_col2, bp_col3 = st.columns(3)
         with bp_col1:
-            growth_rate_pct = st.number_input(
-                "Hypothèse de taux de croissance annuel (%)",
+            st.subheader("Volume")
+            base_volume_m = st.number_input(
+                "Volume de base (GMV/CA filtré, M$)",
                 min_value=0.0,
-                max_value=200.0,
-                value=10.0,
+                value=base_volume_m,
                 step=1.0,
             )
-            lodging_share_pct = st.number_input(
-                "% revenu qui vient de l'hébergement",
+            growth_rate_pct = st.number_input(
+                "Croissance annuelle (%)",
+                min_value=0.0,
+                max_value=200.0,
+                value=8.0,
+                step=1.0,
+            )
+        with bp_col2:
+            st.subheader("Distribution & Adoption")
+            eligible_rate_pct = st.number_input(
+                "Part éligible à l'assurance (%)",
                 min_value=0.0,
                 max_value=100.0,
                 value=70.0,
                 step=1.0,
             )
-        with bp_col2:
-            direct_sales_pct = st.number_input(
-                "% de vente en direct",
+            direct_rate_pct = st.number_input(
+                "Part des ventes directes (%)",
                 min_value=0.0,
                 max_value=100.0,
-                value=40.0,
+                value=30.0,
                 step=1.0,
             )
-            insurance_take_rate_pct = st.number_input(
-                "Taux de prise de l'assurance (%)",
+            optin_rate_pct = st.number_input(
+                "Taux d'opt-in assurance (%)",
                 min_value=0.0,
                 max_value=100.0,
-                value=15.0,
-                step=1.0,
+                value=5.0,
+                step=0.5,
             )
+            with st.expander("Avancé"):
+                direct_uplift_pct = st.number_input(
+                    "Uplift opt-in via direct (%)",
+                    min_value=0.0,
+                    max_value=200.0,
+                    value=30.0,
+                    step=1.0,
+                    help="Si le direct est à 100%, l'opt-in augmente de ce pourcentage.",
+                )
         with bp_col3:
-            insurance_price_pct = st.number_input(
-                "% Prix de l'assurance",
+            st.subheader("Pricing & Economics")
+            price_rate_pct = st.number_input(
+                "Prix de l'assurance (%)",
                 min_value=0.0,
                 max_value=100.0,
-                value=6.0,
+                value=4.0,
                 step=0.5,
             )
             commission_pct = st.number_input(
-                "% de la commission",
+                "Commision (%)",
                 min_value=0.0,
                 max_value=100.0,
-                value=25.0,
+                value=20.0,
                 step=1.0,
             )
 
-        base_revenue_m = float(kpis.get("total_rev_m", 0.0))
-        growth_rate = growth_rate_pct / 100.0
-        lodging_share = lodging_share_pct / 100.0
-        direct_sales = direct_sales_pct / 100.0
-        insurance_take_rate = insurance_take_rate_pct / 100.0
-        insurance_price = insurance_price_pct / 100.0
-        commission_rate = commission_pct / 100.0
 
-        years = [1, 2, 3]
-        rows_bp = []
-        for year in years:
-            revenue_year_m = base_revenue_m * ((1 + growth_rate) ** year)
-            lodging_revenue_m = revenue_year_m * lodging_share
-            direct_sales_revenue_m = lodging_revenue_m * direct_sales
-            premium_total_m = direct_sales_revenue_m * insurance_take_rate * insurance_price
-            commission_total_m = premium_total_m * commission_rate
-            rows_bp.append(
-                {
-                    "Year": f"Année {year}",
-                    "Premium (M$)": premium_total_m,
-                    "Commission (M$)": commission_total_m,
-                }
-            )
+        growth_rate = min(max(growth_rate_pct / 100.0, 0.0), 2.0)
+        eligible_rate = min(max(eligible_rate_pct / 100.0, 0.0), 1.0)
+        direct_rate = min(max(direct_rate_pct / 100.0, 0.0), 1.0)
+        optin_rate = min(max(optin_rate_pct / 100.0, 0.0), 1.0)
+        direct_uplift = min(max(direct_uplift_pct / 100.0, 0.0), 2.0)
+        price_rate = min(max(price_rate_pct / 100.0, 0.0), 1.0)
+        commission_rate = min(max(commission_pct / 100.0, 0.0), 1.0)
 
-        df_bp = pd.DataFrame(rows_bp)
+        df_bp = compute_projection(
+            base_volume_m,
+            growth_rate,
+            eligible_rate,
+            direct_rate,
+            optin_rate,
+            direct_uplift,
+            price_rate,
+            commission_rate,
+        )
+
+        if df_bp.empty or base_volume_m <= 0:
+            st.info("Base volume nul : projection à 0.")
+
+        if price_rate == 0 or optin_rate == 0 or eligible_rate == 0:
+            df_bp["premium_gross"] = 0.0
+            df_bp["commission_net"] = 0.0
+        if commission_rate == 0:
+            df_bp["commission_net"] = 0.0
+
+        year3 = df_bp.iloc[-1] if not df_bp.empty else None
+        kpi1, kpi2, kpi3 = st.columns(3)
+        kpi1.metric(
+            "Gross Premium (Année 3)",
+            fmt_money(float(year3["premium_gross"])) if year3 is not None else fmt_money(0),
+        )
+        kpi2.metric(
+            "Net Commission (Année 3)",
+            fmt_money(float(year3["commission_net"])) if year3 is not None else fmt_money(0),
+        )
+        kpi3.metric(
+            "Policies (Année 3)",
+            f"{float(year3['policies']):,.0f}".replace(",", " ") if year3 is not None else "0",
+        )
+
+        show_driver = st.toggle("Show driver metric", value=False)
+
+        chart_df = df_bp.rename(
+            columns={
+                "year": "Year",
+                "premium_gross": "Premium (M$)",
+                "commission_net": "Commission (M$)",
+            }
+        )
         fig_bp = px.line(
-            df_bp,
+            chart_df,
             x="Year",
             y=["Premium (M$)", "Commission (M$)"],
             markers=True,
@@ -637,6 +720,35 @@ with tab_explorer:
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
         st.plotly_chart(fig_bp, use_container_width=True)
+
+    if show_driver:
+            driver_df = df_bp.rename(columns={"year": "Year", "policies": "Policies"})
+            fig_driver = px.line(
+                driver_df,
+                x="Year",
+                y="Policies",
+                markers=True,
+                labels={"Policies": "Nombre de polices"},
+                color_discrete_sequence=[C_CLAIR],
+            )
+            fig_driver.update_layout(
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                font_color=C_FONCE,
+                margin=dict(l=10, r=10, t=10, b=10),
+                height=260,
+                showlegend=False,
+            )
+            st.plotly_chart(fig_driver, use_container_width=True)
+
+    with st.expander("Model explanation"):
+            st.markdown(
+                "- Le volume de base croît chaque année selon la croissance.\n"
+                "- Une part du volume est éligible à l'assurance.\n"
+                "- L'adoption dépend d'un opt-in de base, amplifié par la part de direct.\n"
+                "- Le premium brut = polices × prix de l'assurance.\n"
+                "- La commission nette = premium brut × commission.\n"
+            )
 
     st.divider()
 
