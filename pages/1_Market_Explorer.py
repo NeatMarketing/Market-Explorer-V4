@@ -192,32 +192,6 @@ with tab_explorer:
             index=vertical_index,
             format_func=lambda v: "All Verticals" if v == "All" else titleize_slug(v),
         )
-
-        st.divider()
-
-        # -----------------------
-        # Tiering
-        # -----------------------
-        st.header("Market Tiering")
-
-        t1 = st.number_input("Large Market threshold (M$)", min_value=0.0, value=500.0, step=50.0)
-        t2 = st.number_input("Mid-Market threshold (M$)", min_value=0.0, value=100.0, step=25.0)
-
-        if t1 < t2:
-            st.warning("Large Market threshold should be ≥ Mid-Market threshold. Adjusting automatically.")
-            t1, t2 = t2, t1
-
-        tier_ui_options = [TIER_UI[t] for t in TIER_ORDER]
-        default_internal = st.session_state.get("tier_filter", "All")
-        default_ui = TIER_UI.get(default_internal, TIER_UI["All"])
-        default_index = tier_ui_options.index(default_ui) if default_ui in tier_ui_options else 0
-
-        tier_ui = st.selectbox("Market Tier", tier_ui_options, index=default_index)
-        tier_filter = TIER_UI_INV[tier_ui]
-        st.session_state["tier_filter"] = tier_filter
-
-        st.divider()
-
     # -----------------------
     # Load dataset(s)
     # -----------------------
@@ -256,6 +230,54 @@ with tab_explorer:
             f"{titleize_slug(vertical) if vertical != 'All' else 'All Verticals'} — "
             f"{zone_label_ui(zone)} — {files}"
         )
+        
+    # -----------------------
+    # Sidebar: Zone country filter (independent from tiering)
+    # -----------------------
+    countries_scope = sorted(
+        [c for c in df.get("Country", pd.Series(dtype=object)).dropna().unique().tolist() if str(c).strip()]
+    )
+
+    with st.sidebar:
+        st.subheader("Zone")
+
+        if zone == "france":
+            country = st.selectbox("Country", ["All"] + countries_scope, index=0)
+        else:
+            all_countries_selected = st.checkbox("All countries", value=True)
+            if all_countries_selected:
+                country = countries_scope
+            else:
+                country = st.multiselect(
+                    "Countries",
+                    countries_scope,
+                    default=countries_scope[: min(len(countries_scope), 5)],
+                )
+
+        st.divider()
+
+        # -----------------------
+        # Tiering
+        # -----------------------
+        st.header("Market Tiering")
+
+        t1 = st.number_input("Large Market threshold (M$)", min_value=0.0, value=500.0, step=50.0)
+        t2 = st.number_input("Mid-Market threshold (M$)", min_value=0.0, value=100.0, step=25.0)
+
+        if t1 < t2:
+            st.warning("Large Market threshold should be ≥ Mid-Market threshold. Adjusting automatically.")
+            t1, t2 = t2, t1
+
+        tier_ui_options = [TIER_UI[t] for t in TIER_ORDER]
+        default_internal = st.session_state.get("tier_filter", "All")
+        default_ui = TIER_UI.get(default_internal, TIER_UI["All"])
+        default_index = tier_ui_options.index(default_ui) if default_ui in tier_ui_options else 0
+
+        tier_ui = st.selectbox("Market Tier", tier_ui_options, index=default_index)
+        tier_filter = TIER_UI_INV[tier_ui]
+        st.session_state["tier_filter"] = tier_filter
+
+        st.divider()
 
     # -----------------------
     # Prepare tiered df + apply tier filter
@@ -286,9 +308,6 @@ with tab_explorer:
     # -----------------------
     # Sidebar: Filters
     # -----------------------
-    countries = sorted(
-        [c for c in df_t.get("Country", pd.Series(dtype=object)).dropna().unique().tolist() if str(c).strip()]
-    )
     company_types = sorted(
         [c for c in df_t.get("Company Type", pd.Series(dtype=object)).dropna().unique().tolist() if str(c).strip()]
     )
@@ -318,20 +337,7 @@ with tab_explorer:
                 value=(float(rev_min), float(rev_max)),
                 step=float(step),
             )
-    
-        if zone == "france":
-            country = st.selectbox("Country", ["All"] + countries, index=0)
-        else:
-            all_countries_selected = st.checkbox("All countries", value=True)
-            if all_countries_selected:
-                country = countries
-            else:
-                country = st.multiselect(
-                    "Countries",
-                    countries,
-                    default=countries[: min(len(countries), 5)],
-                )
-        
+            
         company_type = st.selectbox("Company Type", ["All"] + company_types, index=0)
         sector = st.selectbox("Sector", ["All"] + sectors, index=0)
     
