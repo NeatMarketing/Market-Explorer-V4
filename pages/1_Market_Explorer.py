@@ -543,214 +543,153 @@ with tab_explorer:
             st.plotly_chart(fig, use_container_width=True)
 
     # -----------------------
-    # General BP (Travel > Hotel)
-    # -----------------------
-    if market == "travel" and vertical == "hotel":
-        st.subheader("BP Général — Premium & Commission (3 ans)")
-        st.caption(
-            "Projection basée sur le revenu cumulé filtré (zone + tiering + filtres actuels). "
-            "Le modèle suit un funnel causal : volume → éligibilité → adoption → pricing → premium → commission."
+# General BP (Travel > Hotel) — SIMPLE MODEL
+# -----------------------
+if market == "travel" and vertical == "hotel":
+    st.subheader("BP Général — Premium & Commission (3 ans)")
+    def compute_bp_simple(
+        hotel_rev_y1: float,
+        market_growth: float,
+        direct_rate: float,
+        take_rate: float,
+        price_rate: float,
+        neat_commission: float,
+    ) -> pd.DataFrame:
+        years = [1, 2, 3]
+        rows = []
+        for y in years:
+            hotel_rev = hotel_rev_y1 * ((1 + market_growth) ** (y - 1))
+            direct_rev = hotel_rev * direct_rate
+            premium = direct_rev * take_rate * price_rate
+            neat_rev = premium * neat_commission
+            rows.append(
+                {
+                    "Year": f"Année {y}",
+                    "Hotel revenue (M$)": hotel_rev,
+                    "Direct revenue (M$)": direct_rev,
+                    "Premium (M$)": premium,
+                    "Neat revenue (M$)": neat_rev,
+                }
+            )
+        return pd.DataFrame(rows)
+
+    # Default base: your filtered revenue KPI (already in M$)
+    base_hotel_rev_m = float(kpis.get("total_rev_m", 0.0))
+
+    bp_col1, bp_col2, bp_col3 = st.columns(3)
+
+    with bp_col1:
+        st.subheader("Market")
+        base_hotel_rev_m = st.number_input(
+            "Hotel revenue (Year 1, M$)",
+            min_value=0.0,
+            value=base_hotel_rev_m,
+            step=1.0,
+        )
+        market_growth_pct = st.number_input(
+            "Market growth / year (%)",
+            min_value=0.0,
+            max_value=200.0,
+            value=8.0,
+            step=1.0,
         )
 
-        def compute_projection(
-            base_volume: float,
-            g: float,
-            eligible_rate: float,
-            direct_rate: float,
-            optin_rate: float,
-            direct_uplift: float,
-            price_rate: float,
-            commission_rate: float,
-        ) -> pd.DataFrame:
-            """Compute 3-year projection using a causal insurance funnel."""
-            years = [1, 2, 3]
-            rows = []
-            for year in years:
-                volume = base_volume * ((1 + g) ** (year - 1))
-                effective_optin = optin_rate * (1 + direct_rate * direct_uplift)
-                effective_optin = min(max(effective_optin, 0.0), 1.0)
-                policies = volume * eligible_rate * effective_optin
-                premium_gross = policies * price_rate
-                commission_net = premium_gross * commission_rate
-                rows.append(
-                    {
-                        "year": f"Année {year}",
-                        "volume": volume,
-                        "effective_optin": effective_optin,
-                        "policies": policies,
-                        "premium_gross": premium_gross,
-                        "commission_net": commission_net,
-                    }
-                )
-            return pd.DataFrame(rows)
-
-        base_volume_m = float(kpis.get("total_rev_m", 0.0))
-        bp_col1, bp_col2, bp_col3 = st.columns(3)
-        with bp_col1:
-            st.subheader("Volume")
-            base_volume_m = st.number_input(
-                "Volume de base (GMV/CA filtré, M$)",
-                min_value=0.0,
-                value=base_volume_m,
-                step=1.0,
-            )
-            growth_rate_pct = st.number_input(
-                "Croissance annuelle (%)",
-                min_value=0.0,
-                max_value=200.0,
-                value=8.0,
-                step=1.0,
-            )
-        with bp_col2:
-            st.subheader("Distribution & Adoption")
-            eligible_rate_pct = st.number_input(
-                "Part éligible à l'assurance (%)",
-                min_value=0.0,
-                max_value=100.0,
-                value=70.0,
-                step=1.0,
-            )
-            direct_rate_pct = st.number_input(
-                "Part des ventes directes (%)",
-                min_value=0.0,
-                max_value=100.0,
-                value=30.0,
-                step=1.0,
-            )
-            optin_rate_pct = st.number_input(
-                "Taux d'opt-in assurance (%)",
-                min_value=0.0,
-                max_value=100.0,
-                value=5.0,
-                step=0.5,
-            )
-            with st.expander("Avancé"):
-                direct_uplift_pct = st.number_input(
-                    "Uplift opt-in via direct (%)",
-                    min_value=0.0,
-                    max_value=200.0,
-                    value=30.0,
-                    step=1.0,
-                    help="Si le direct est à 100%, l'opt-in augmente de ce pourcentage.",
-                )
-        with bp_col3:
-            st.subheader("Pricing & Economics")
-            price_rate_pct = st.number_input(
-                "Prix de l'assurance (%)",
-                min_value=0.0,
-                max_value=100.0,
-                value=4.0,
-                step=0.5,
-            )
-            commission_pct = st.number_input(
-                "Commision (%)",
-                min_value=0.0,
-                max_value=100.0,
-                value=20.0,
-                step=1.0,
-            )
-
-
-        growth_rate = min(max(growth_rate_pct / 100.0, 0.0), 2.0)
-        eligible_rate = min(max(eligible_rate_pct / 100.0, 0.0), 1.0)
-        direct_rate = min(max(direct_rate_pct / 100.0, 0.0), 1.0)
-        optin_rate = min(max(optin_rate_pct / 100.0, 0.0), 1.0)
-        direct_uplift = min(max(direct_uplift_pct / 100.0, 0.0), 2.0)
-        price_rate = min(max(price_rate_pct / 100.0, 0.0), 1.0)
-        commission_rate = min(max(commission_pct / 100.0, 0.0), 1.0)
-
-        df_bp = compute_projection(
-            base_volume_m,
-            growth_rate,
-            eligible_rate,
-            direct_rate,
-            optin_rate,
-            direct_uplift,
-            price_rate,
-            commission_rate,
+    with bp_col2:
+        st.subheader("Distribution")
+        direct_rate_pct = st.number_input(
+            "% Direct",
+            min_value=0.0,
+            max_value=100.0,
+            value=30.0,
+            step=1.0,
+        )
+        take_rate_pct = st.number_input(
+            "Take Rate (%)",
+            min_value=0.0,
+            max_value=100.0,
+            value=5.0,
+            step=0.5,
         )
 
-        if df_bp.empty or base_volume_m <= 0:
-            st.info("Base volume nul : projection à 0.")
-
-        if price_rate == 0 or optin_rate == 0 or eligible_rate == 0:
-            df_bp["premium_gross"] = 0.0
-            df_bp["commission_net"] = 0.0
-        if commission_rate == 0:
-            df_bp["commission_net"] = 0.0
-
-        year3 = df_bp.iloc[-1] if not df_bp.empty else None
-        kpi1, kpi2, kpi3 = st.columns(3)
-        kpi1.metric(
-            "Gross Premium (Année 3)",
-            fmt_money(float(year3["premium_gross"])) if year3 is not None else fmt_money(0),
+    with bp_col3:
+        st.subheader("Economics")
+        price_rate_pct = st.number_input(
+            "Price (% of booking)",
+            min_value=0.0,
+            max_value=100.0,
+            value=4.0,
+            step=0.5,
         )
-        kpi2.metric(
-            "Net Commission (Année 3)",
-            fmt_money(float(year3["commission_net"])) if year3 is not None else fmt_money(0),
-        )
-        kpi3.metric(
-            "Policies (Année 3)",
-            f"{float(year3['policies']):,.0f}".replace(",", " ") if year3 is not None else "0",
+        neat_comm_pct = st.number_input(
+            "Neat commission (%)",
+            min_value=0.0,
+            max_value=100.0,
+            value=20.0,
+            step=1.0,
         )
 
-        show_driver = st.toggle("Show driver metric", value=False)
+    # Convert % → decimals with caps
+    market_growth = min(max(market_growth_pct / 100.0, 0.0), 2.0)
+    direct_rate = min(max(direct_rate_pct / 100.0, 0.0), 1.0)
+    take_rate = min(max(take_rate_pct / 100.0, 0.0), 1.0)
+    price_rate = min(max(price_rate_pct / 100.0, 0.0), 1.0)
+    neat_commission = min(max(neat_comm_pct / 100.0, 0.0), 1.0)
 
-        chart_df = df_bp.rename(
-            columns={
-                "year": "Year",
-                "premium_gross": "Premium (M$)",
-                "commission_net": "Commission (M$)",
-            }
-        )
-        fig_bp = px.line(
-            chart_df,
-            x="Year",
-            y=["Premium (M$)", "Commission (M$)"],
-            markers=True,
-            labels={"value": "Montant (M$)", "variable": ""},
-            color_discrete_sequence=[C_FONCE, C_ROSE],
-        )
-        fig_bp.update_layout(
-            plot_bgcolor="white",
-            paper_bgcolor="white",
-            font_color=C_FONCE,
-            margin=dict(l=10, r=10, t=10, b=10),
-            height=420,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        )
-        st.plotly_chart(fig_bp, use_container_width=True)
+    df_bp = compute_bp_simple(
+        base_hotel_rev_m,
+        market_growth,
+        direct_rate,
+        take_rate,
+        price_rate,
+        neat_commission,
+    )
 
-    if show_driver:
-            driver_df = df_bp.rename(columns={"year": "Year", "policies": "Policies"})
-            fig_driver = px.line(
-                driver_df,
-                x="Year",
-                y="Policies",
-                markers=True,
-                labels={"Policies": "Nombre de polices"},
-                color_discrete_sequence=[C_CLAIR],
-            )
-            fig_driver.update_layout(
-                plot_bgcolor="white",
-                paper_bgcolor="white",
-                font_color=C_FONCE,
-                margin=dict(l=10, r=10, t=10, b=10),
-                height=260,
-                showlegend=False,
-            )
-            st.plotly_chart(fig_driver, use_container_width=True)
+    # KPI cards (Year 3)
+    year3 = df_bp.iloc[-1]
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Premium (Année 3)", fmt_money(float(year3["Premium (M$)"])))
+    k2.metric("Neat revenue (Année 3)", fmt_money(float(year3["Neat revenue (M$)"])))
+    k3.metric("Hotel revenue (Année 3)", fmt_money(float(year3["Hotel revenue (M$)"])))
 
-    with st.expander("Model explanation"):
-            st.markdown(
-                "- Le volume de base croît chaque année selon la croissance.\n"
-                "- Une part du volume est éligible à l'assurance.\n"
-                "- L'adoption dépend d'un opt-in de base, amplifié par la part de direct.\n"
-                "- Le premium brut = polices × prix de l'assurance.\n"
-                "- La commission nette = premium brut × commission.\n"
-            )
+    # Chart (thicker + nicer)
+    fig_bp = px.line(
+        df_bp,
+        x="Year",
+        y=["Premium (M$)", "Neat revenue (M$)"],
+        markers=True,
+        labels={"value": "Montant (M$)", "variable": ""},
+        color_discrete_sequence=[C_FONCE, C_ROSE],
+    )
+
+    fig_bp.update_traces(
+        mode="lines+markers",
+        line=dict(width=5),
+        marker=dict(size=9),
+    )
+
+    fig_bp.update_layout(
+        template="plotly_white",
+        hovermode="x unified",
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font_color=C_FONCE,
+        margin=dict(l=10, r=10, t=10, b=10),
+        height=440,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+
+    st.plotly_chart(fig_bp, use_container_width=True)
+
+    with st.expander("Assumptions (simple)"):
+        st.markdown(
+            "- Hotel revenue grows each year with market growth.\n"
+            "- Only Direct share is considered for insurance distribution.\n"
+            "- Premium = Direct revenue × Take Rate × Price.\n"
+            "- Neat revenue = Premium × Neat commission.\n"
+        )
 
     st.divider()
+
 
     # -----------------------
     # Qualified Target List
