@@ -246,7 +246,8 @@ with tab_explorer:
         st.subheader("Zone")
 
         if zone == "france":
-            country = st.selectbox("Country", ["All"] + countries_scope, index=0)
+            country = None
+            st.caption("France includes mainland France and all overseas territories.")
         else:
             all_countries_selected = st.checkbox("All countries", value=True)
             if all_countries_selected:
@@ -361,7 +362,7 @@ with tab_explorer:
     # analytics.apply_filters expects None (or an empty iterable) to disable a filter.
     
     if zone == "france":
-        country_f = None if country == "All" else [country]
+        country_f = None
     else:
         country_f = None if not country else list(country)
     company_type_f = None if company_type == "All" else [company_type]
@@ -542,10 +543,10 @@ with tab_explorer:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-    # -----------------------
+# -----------------------
 # General BP (Travel > Hotel) — SIMPLE MODEL
 # -----------------------
-if market == "travel" and vertical == "hotel":
+
     st.subheader("BP Général — Premium & Commission (3 ans)")
     def compute_bp_simple(
         hotel_rev_y1: float,
