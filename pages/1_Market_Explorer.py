@@ -538,6 +538,106 @@ with tab_explorer:
             )
             st.plotly_chart(fig, use_container_width=True)
 
+    # -----------------------
+    # General BP (Travel > Hotel)
+    # -----------------------
+    if market == "travel" and vertical == "hotel":
+        st.subheader("BP Général — Premium & Commission (3 ans)")
+        st.caption(
+            "Projection basée sur le revenu cumulé filtré (zone + tiering + filtres actuels). "
+            "Les pourcentages ci-dessous s'appliquent au revenu."
+        )
+
+        bp_col1, bp_col2, bp_col3 = st.columns(3)
+        with bp_col1:
+            growth_rate_pct = st.number_input(
+                "Hypothèse de taux de croissance annuel (%)",
+                min_value=0.0,
+                max_value=200.0,
+                value=10.0,
+                step=1.0,
+            )
+            lodging_share_pct = st.number_input(
+                "% revenu qui vient de l'hébergement",
+                min_value=0.0,
+                max_value=100.0,
+                value=70.0,
+                step=1.0,
+            )
+        with bp_col2:
+            direct_sales_pct = st.number_input(
+                "% de vente en direct",
+                min_value=0.0,
+                max_value=100.0,
+                value=40.0,
+                step=1.0,
+            )
+            insurance_take_rate_pct = st.number_input(
+                "Taux de prise de l'assurance (%)",
+                min_value=0.0,
+                max_value=100.0,
+                value=15.0,
+                step=1.0,
+            )
+        with bp_col3:
+            insurance_price_pct = st.number_input(
+                "% Prix de l'assurance",
+                min_value=0.0,
+                max_value=100.0,
+                value=6.0,
+                step=0.5,
+            )
+            commission_pct = st.number_input(
+                "% de la commission",
+                min_value=0.0,
+                max_value=100.0,
+                value=25.0,
+                step=1.0,
+            )
+
+        base_revenue_m = float(kpis.get("total_rev_m", 0.0))
+        growth_rate = growth_rate_pct / 100.0
+        lodging_share = lodging_share_pct / 100.0
+        direct_sales = direct_sales_pct / 100.0
+        insurance_take_rate = insurance_take_rate_pct / 100.0
+        insurance_price = insurance_price_pct / 100.0
+        commission_rate = commission_pct / 100.0
+
+        years = [1, 2, 3]
+        rows_bp = []
+        for year in years:
+            revenue_year_m = base_revenue_m * ((1 + growth_rate) ** year)
+            lodging_revenue_m = revenue_year_m * lodging_share
+            direct_sales_revenue_m = lodging_revenue_m * direct_sales
+            premium_total_m = direct_sales_revenue_m * insurance_take_rate * insurance_price
+            commission_total_m = premium_total_m * commission_rate
+            rows_bp.append(
+                {
+                    "Year": f"Année {year}",
+                    "Premium (M$)": premium_total_m,
+                    "Commission (M$)": commission_total_m,
+                }
+            )
+
+        df_bp = pd.DataFrame(rows_bp)
+        fig_bp = px.line(
+            df_bp,
+            x="Year",
+            y=["Premium (M$)", "Commission (M$)"],
+            markers=True,
+            labels={"value": "Montant (M$)", "variable": ""},
+            color_discrete_sequence=[C_FONCE, C_ROSE],
+        )
+        fig_bp.update_layout(
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+            font_color=C_FONCE,
+            margin=dict(l=10, r=10, t=10, b=10),
+            height=420,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
+        st.plotly_chart(fig_bp, use_container_width=True)
+
     st.divider()
 
     # -----------------------
