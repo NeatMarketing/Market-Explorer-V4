@@ -24,7 +24,7 @@ Market_Sizing/
 │
 ├── app.py                 # Bootstrap / redirect (not a UI page)
 ├── market_sizing.py       # Data loading, KPIs, business logic
-│
+├── market_explorer/       # Core app modules (auth, analytics, data IO, etc.)
 ├── Data/                  # Raw data
 ├── Data_Clean/            # Cleaned CSV datasets
 │

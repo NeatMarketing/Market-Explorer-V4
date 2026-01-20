@@ -11,13 +11,14 @@ from market_explorer.auth import (
 )
 from market_explorer.bp_state import clear_bp_state, list_bp_states,load_bp_state
 from market_explorer.notes import load_notes, reset_notes
+from market_explorer.ui import add_corner_logo
 
 
 # -----------------------
 # Page config
 # -----------------------
 st.set_page_config(page_title="Market Explorer – Home", page_icon="🏠", layout="wide")
-
+add_corner_logo()
 
 # -----------------------
 # Minimal UI polish

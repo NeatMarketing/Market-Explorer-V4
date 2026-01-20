@@ -57,6 +57,7 @@ if not datasets_all:
 # =============================================================================
 # Theme (Neat)
 # =============================================================================
+
 C_FONCE = "#41072A"
 C_ROSE = "#FF85C8"
 C_WHITE = "#FFFFFF"
@@ -82,10 +83,6 @@ st.markdown(
 )
 
 st.title("Market Explorer (Internal)")
-st.caption(
-    "Internal market intelligence tool for Sales teams. "
-    "Explore market size, prioritize accounts with market tiering, and export qualified target lists."
-)
 
 tab_explorer, tab_overview = st.tabs(["Market Explorer", "Market Overview"])
 

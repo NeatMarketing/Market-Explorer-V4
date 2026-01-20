@@ -25,7 +25,6 @@ st.set_page_config(
 )
 
 st.title("Business Plan Hotels — Groupe (MVP)")
-st.caption("MVP sales-friendly pour groupes multi-marques. Calculs simples, robustes et transparents.")
 
 profile = st.session_state.get("profile", "user")
 
@@ -41,6 +40,7 @@ if bp_context_company_name:
         if st.button("Changer", use_container_width=True):
             st.session_state.pop("bp_context", None)
             st.session_state.pop("bp_context_key", None)
+            st.session_state.pop("bp_context_filters_key", None)
             st.session_state.pop("selected_hotel_name", None)
             st.rerun()
             
@@ -85,6 +85,17 @@ ZONE_DATASET_MAP = {
     "france": "france",
     "eu": "europe",
 }
+
+if bp_context_company_name:
+    context_key = (bp_context_company_id, bp_context_company_name)
+    if st.session_state.get("bp_context_filters_key") != context_key:
+        context_zone = bp_context.get("zone")
+        if context_zone in ZONE_LABELS:
+            st.session_state["hotel_zone"] = context_zone
+        context_tier = bp_context.get("tiering")
+        if context_tier in TIER_ORDER:
+            st.session_state["hotel_tier_filter"] = context_tier
+        st.session_state["bp_context_filters_key"] = context_key
 
 def format_zone_option(value: str) -> str:
     return ZONE_LABELS.get(str(value).strip().lower(), str(value))
@@ -184,6 +195,7 @@ with st.sidebar:
         if st.button("🔄 Réinitialiser la sélection", use_container_width=True):
             st.session_state.pop("bp_context", None)
             st.session_state.pop("bp_context_key", None)
+            st.session_state.pop("bp_context_filters_key",None)
             st.session_state.pop("selected_hotel_name", None)
             st.rerun()
 
