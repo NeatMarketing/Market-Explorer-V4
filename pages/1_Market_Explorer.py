@@ -1,3 +1,7 @@
+# =============================================================================
+# Imports
+# =============================================================================
+
 from pathlib import Path
 
 import streamlit as st
@@ -57,14 +61,14 @@ FRANCE_OVERSEAS = [
     "Saint Barthélemy",
 ]
 # =============================================================================
-# Auth guard
+# Authentification sécurité
 # =============================================================================
 
 require_auth()
 profile = st.session_state.get("profile")
 
 # =============================================================================
-# Paths / catalog
+# Trajectoire
 # =============================================================================
 DATA_DIR = Path(__file__).resolve().parents[1] / "Data_Clean"
 catalog = DatasetCatalog.from_dir(DATA_DIR)
@@ -76,7 +80,7 @@ if not datasets_all:
 
 
 # =============================================================================
-# Theme (Neat)
+# Neat
 # =============================================================================
 
 C_FONCE = "#41072A"
@@ -104,12 +108,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("Market Explorer (Internal)")
+st.title("Market Explorer")
 
 tab_explorer, tab_overview = st.tabs(["Market Explorer", "Market Overview"])
 
 # =============================================================================
-# Session state defaults
+# Critères par défaut 
 # =============================================================================
 
 st.session_state.setdefault("zone", "france")
@@ -120,27 +124,32 @@ st.session_state.setdefault("top_n", 10)
 
 
 # =============================================================================
-# TAB 1 — MARKET EXPLORER
+# Première Page -- Market Explorer
 # =============================================================================
 
 with tab_explorer:
-
+    
     # -----------------------
-    # Sidebar: Scope + Tiering
+    # Sidebar
     # -----------------------
     with st.sidebar:
         
-        st.markdown("### Navigation")
+        st.header("Navigation")
+        
         if st.button("🏠 Home", use_container_width=True):
             st.switch_page("pages/0_Home.py")
+            
         st.button("🔎 Market Explorer", use_container_width=True, disabled=True)
+        
         if st.button("🏨 BP Hotels", use_container_width=True):
             st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
+            
         st.divider()
 
         
         st.header("Scope")
-
+        
+        # Zone
         zone = st.selectbox(
             "Zone",
             ["france", "eu", "eu_fr"],
@@ -149,12 +158,15 @@ with tab_explorer:
         )
 
         zones_in_scope = zones_in_scope_from_ui(zone)
+        
         ds_zone = [d for d in datasets_all if d.zone in zones_in_scope]
 
         if not ds_zone:
             st.warning("Aucun dataset trouvé pour cette zone.")
             st.stop()
-
+            
+        # Market
+        
         markets = sorted({d.market for d in ds_zone})
         markets_ui = ["All"] + markets
         default_market = st.session_state.get("market", "All")
@@ -169,12 +181,14 @@ with tab_explorer:
         )
 
         # datasets in zone + market
+
         if market == "All":
             ds_scope = ds_zone
         else:
             ds_scope = [d for d in ds_zone if d.market == market]
 
         verticals = sorted({d.vertical for d in ds_scope})
+        
         if not verticals:
             st.warning("Aucune verticale trouvée pour ce couple Zone/Market.")
             st.stop()
@@ -193,6 +207,7 @@ with tab_explorer:
     # -----------------------
     # Load dataset(s)
     # -----------------------
+    
     if vertical == "All":
         match = ds_scope
     else:
@@ -215,6 +230,7 @@ with tab_explorer:
     df = pd.concat(dfs, ignore_index=True)
 
     # Display sources
+    
     if len(match) == 1:
         dataset_info = match[0]
         st.caption(
@@ -228,7 +244,7 @@ with tab_explorer:
             f"{titleize_slug(vertical) if vertical != 'All' else 'All Verticals'} — "
             f"{zone_label_ui(zone)} — {files}"
         )
-        
+    
     # -----------------------
     # Sidebar: Zone country filter (independent from tiering)
     # -----------------------
@@ -544,17 +560,19 @@ with tab_explorer:
             st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------
-# General BP (Travel > Hotel) — SIMPLE MODEL
+# General BP 
 # -----------------------
 
-    st.subheader("BP Général — Premium & Commission (3 ans)")
+    st.subheader("BP Général — Premium & Commission (3 years)")
 
     # Default base: your filtered revenue KPI (already in M$)
+    
     base_hotel_rev_m = float(kpis.get("total_rev_m", 0.0))
 
     bp_col1, bp_col2, bp_col3 = st.columns(3)
 
     with bp_col1:
+        
         st.subheader("Market")
         base_hotel_rev_m = st.number_input(
             "Hotel revenue (Year 1, M$)",
@@ -562,6 +580,7 @@ with tab_explorer:
             value=base_hotel_rev_m,
             step=1.0,
         )
+        
         market_growth_pct = st.number_input(
             "Market growth / year (%)",
             min_value=0.0,
@@ -571,6 +590,7 @@ with tab_explorer:
         )
 
     with bp_col2:
+        
         st.subheader("Distribution")
         direct_rate_pct = st.number_input(
             "% Direct",
@@ -579,6 +599,7 @@ with tab_explorer:
             value=30.0,
             step=1.0,
         )
+        
         take_rate_pct = st.number_input(
             "Take Rate (%)",
             min_value=0.0,
@@ -588,6 +609,7 @@ with tab_explorer:
         )
 
     with bp_col3:
+        
         st.subheader("Economics")
         price_rate_pct = st.number_input(
             "Price (% of booking)",
@@ -605,6 +627,7 @@ with tab_explorer:
         )
 
     # Convert % → decimals with caps
+    
     market_growth = min(max(market_growth_pct / 100.0, 0.0), 2.0)
     direct_rate = min(max(direct_rate_pct / 100.0, 0.0), 1.0)
     take_rate = min(max(take_rate_pct / 100.0, 0.0), 1.0)
@@ -621,13 +644,15 @@ with tab_explorer:
     )
 
     # KPI cards (Year 3)
+    
     year3 = df_bp.iloc[-1]
     k1, k2, k3 = st.columns(3)
     k1.metric("Premium (Year 3)", fmt_money(float(year3["Premium (M$)"])))
     k2.metric("Neat revenue (Year 3)", fmt_money(float(year3["Neat revenue (M$)"])))
     k3.metric("Hotel revenue (Year 3)", fmt_money(float(year3["Hotel revenue (M$)"])))
 
-    # Chart (thicker + nicer)
+    # Chart
+    
     fig_bp = px.line(
         df_bp,
         x="Year",
@@ -662,9 +687,11 @@ with tab_explorer:
     # -----------------------
     # Qualified Target List
     # -----------------------
+    
     st.subheader("Qualified Target List")
 
-    # Notes for current profile (for tags in table + editor)
+    # Notes for current profile
+    
     notes = load_notes(profile)
 
     cols = [
@@ -684,7 +711,8 @@ with tab_explorer:
 
     target = df_f[cols].sort_values("Revenue_M", ascending=False).copy()
 
-    # Add tag column from notes (fast + sales-friendly)
+    # Add tag column from notes
+    
     def _tag_for_row(r):
         k = company_key(str(r["Name"]), str(r.get("Country", "")))
         return notes.get(k, {}).get("tag", "")
@@ -713,7 +741,8 @@ with tab_explorer:
     # -----------------------
     # Create Business Plan
     # -----------------------
-    st.markdown("### 🚀 Créer un BP (Hôtel)")
+    
+    st.markdown("### 🚀 Créer un BP")
 
     selected_row_for_bp = None
     selected_label_for_bp = None
@@ -745,9 +774,9 @@ with tab_explorer:
 
     can_create_bp = selected_row_for_bp is not None
 
-    if st.button("🚀 Créer un BP (Hôtel)", use_container_width=True, disabled=not can_create_bp):
+    if st.button("🚀 Créer un BP", use_container_width=True, disabled=not can_create_bp):
         if not can_create_bp:
-            st.warning("Veuillez sélectionner une entreprise avant de créer un BP.")
+            st.warning("Veuillez sélectionner une entreprise avant de créer un BP")
         else:
             context = get_company_context_row(selected_row_for_bp)
             dataset_label = (
@@ -772,7 +801,7 @@ with tab_explorer:
 
 
     # -----------------------
-    # Notes editor (click row -> edit)
+    # Notes editor
     # -----------------------
 
     st.markdown("### 📝 Notes on a company")
@@ -782,6 +811,7 @@ with tab_explorer:
     linkedin_url = ""
 
     # 1) If a row is selected from the table
+    
     if event is not None and getattr(event, "selection", None):
         rows = event.selection.get("rows", [])
         if rows:
@@ -791,6 +821,7 @@ with tab_explorer:
             row = target.iloc[[i]]  # dataframe with 1 row
 
     # 2) Fallback: selectbox
+    
     names = target["Name"].astype(str).tolist()
 
     if not names:
@@ -804,13 +835,15 @@ with tab_explorer:
     else:
         st.markdown(f"**Selected:** {selected_name} ({selected_country})")
 
-    # 3) Extract LinkedIn URL (NOW row is correct)
+    # 3) Extract LinkedIn URL 
+    
     try:
         linkedin_url = str(row["LinkedIn URL"].iloc[0] or "").strip()
     except Exception:
         linkedin_url = ""
 
     # 4) Notes logic
+    
     key = company_key(selected_name, selected_country)
     existing = notes.get(key, {})
 
@@ -827,6 +860,7 @@ with tab_explorer:
     )
 
     # 5) Actions
+    
     cA, cB = st.columns([1, 1])
 
     with cA:
@@ -861,8 +895,9 @@ with tab_explorer:
                 st.info("No note to delete.")
 
 # =============================================================================
-# TAB 2 — MARKET OVERVIEW
+# 2eme Page -- Market Overview
 # =============================================================================
+    
 with tab_overview:
     st.subheader("Market Share Overview")
 
@@ -878,6 +913,7 @@ with tab_overview:
     zones_ms = zones_in_scope_from_ui(zone_ms)
 
     markets_focus = ["travel", "goods", "financial_services", "ticketing"]
+    
     with c2:
         market_ms = st.selectbox(
             "Market",
@@ -887,7 +923,9 @@ with tab_overview:
         )
 
     # 1) Market shares (macro)
+    
     ds_zone = [d for d in datasets_all if d.zone in zones_ms and d.market in markets_focus]
+    
     if not ds_zone:
         st.warning(f"No datasets found for zone={zone_ms}.")
         st.stop()
@@ -945,6 +983,7 @@ with tab_overview:
     st.divider()
 
     # 2) Drill-down: vertical shares within selected market
+
     st.subheader(f"{market_label(market_ms)} · {zone_label_ui(zone_ms)} — Breakdown by Vertical")
 
     ds_market = [d for d in datasets_all if d.zone in zones_ms and d.market == market_ms]
