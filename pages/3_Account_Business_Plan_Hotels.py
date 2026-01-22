@@ -8,6 +8,153 @@ from market_explorer.auth import require_auth
 from market_explorer.tiering import add_tier, filter_by_tier
 from market_explorer.bp_state import get_bp_state, load_bp_state, save_bp_state
 
+
+def safe_div(numerator: float, denominator: float) -> float:
+    return numerator / denominator if denominator else 0.0
+
+
+def normalize_shares(raw_shares: list[float]) -> list[float]:
+    total = sum(raw_shares)
+    if total == 0:
+        if not raw_shares:
+            return []
+        return [100.0 / len(raw_shares)] * len(raw_shares)
+    return [(share / total) * 100.0 for share in raw_shares]
+
+
+def fmt_money(value: float) -> str:
+    return f"{value:,.0f} €".replace(",", " ")
+
+
+def compute_brand_financials(
+    brand_name: str,
+    nb_hotels: int,
+    share_norm: float,
+    ca_total: float,
+    pct_hebergement: float,
+    nb_chambres: int,
+    taux_remplissage: float,
+    duree_sejour: float,
+    taux_prime_assurance: float,
+    taux_de_prise: float,
+) -> dict:
+    ca_marque = ca_total * (share_norm / 100.0)
+    ca_hotel_total = safe_div(ca_marque, nb_hotels) if nb_hotels > 0 else 0.0
+
+    ca_hebergement_hotel = ca_hotel_total * (pct_hebergement / 100.0)
+    nuitees = max(nb_chambres, 0) * 365 * (max(taux_remplissage, 0) / 100.0)
+    adr = safe_div(ca_hebergement_hotel, nuitees) if nuitees > 0 else 0.0
+
+    prix_sejour = adr * duree_sejour
+    nb_sejours = safe_div(nuitees, duree_sejour) if duree_sejour > 0 else 0.0
+
+    prime_sejour = prix_sejour * (taux_prime_assurance / 100.0)
+    prime_brute_annuelle = nb_sejours * prime_sejour * (taux_de_prise / 100.0)
+
+    occupied_room_nights = (
+        max(nb_hotels, 0)
+        * max(nb_chambres, 0)
+        * 365
+        * (max(taux_remplissage, 0) / 100.0)
+    )
+    available_room_nights = max(nb_hotels, 0) * max(nb_chambres, 0) * 365
+    total_hebergement = ca_marque * (pct_hebergement / 100.0)
+
+    return {
+        "Marque": brand_name,
+        "Nb hôtels": nb_hotels,
+        "Part CA": share_norm,
+        "CA marque": ca_marque,
+        "CA/hôtel total": ca_hotel_total,
+        "% hébergement": pct_hebergement,
+        "CA hébergement/hôtel": ca_hebergement_hotel,
+        "Chambres moy.": nb_chambres,
+        "Occup. %": taux_remplissage,
+        "Nuitées/an": nuitees,
+        "ADR": adr,
+        "Durée séjour": duree_sejour,
+        "Prix séjour": prix_sejour,
+        "Nb séjours/an": nb_sejours,
+        "Prime %": taux_prime_assurance,
+        "Prise %": taux_de_prise,
+        "Prime brute/an": prime_brute_annuelle,
+        "CA hébergement total": total_hebergement,
+        "Room nights occupied": occupied_room_nights,
+        "Room nights available": available_room_nights,
+    }
+
+
+def compute_group_summary(rows: list[dict]) -> dict:
+    sum_primes = float(sum(row.get("Prime brute/an", 0.0) for row in rows))
+    sum_nuitees = float(sum(row.get("Nuitées/an", 0.0) for row in rows))
+    sum_ca_hebergement = float(sum(row.get("CA hébergement/hôtel", 0.0) for row in rows))
+    adr_moyen_pondere = safe_div(sum_ca_hebergement, sum_nuitees) if sum_nuitees > 0 else 0.0
+    total_hotels = int(sum(row.get("Nb hôtels", 0) for row in rows))
+    total_rooms = int(sum(row.get("Nb hôtels", 0) * row.get("Chambres moy.", 0) for row in rows))
+    occupied_room_nights = float(sum(row.get("Room nights occupied", 0.0) for row in rows))
+    available_room_nights = float(sum(row.get("Room nights available", 0.0) for row in rows))
+    occupancy_rate = safe_div(occupied_room_nights, available_room_nights) * 100.0
+    total_hebergement = float(sum(row.get("CA hébergement total", 0.0) for row in rows))
+
+    return {
+        "sum_primes": sum_primes,
+        "sum_nuitees": sum_nuitees,
+        "sum_ca_hebergement": sum_ca_hebergement,
+        "adr_moyen_pondere": adr_moyen_pondere,
+        "total_hotels": total_hotels,
+        "total_rooms": total_rooms,
+        "occupancy_rate": occupancy_rate,
+        "total_hebergement": total_hebergement,
+    }
+
+
+def compute_ebitda_metrics(
+    total_revenue: float,
+    variable_cost_ratio: float,
+    fixed_costs_total: float,
+) -> dict:
+    variable_costs = total_revenue * (variable_cost_ratio / 100.0)
+    ebitda = total_revenue - variable_costs - fixed_costs_total
+    margin = safe_div(ebitda, total_revenue) if total_revenue > 0 else 0.0
+    return {
+        "variable_costs": variable_costs,
+        "fixed_costs": fixed_costs_total,
+        "ebitda": ebitda,
+        "margin": margin,
+    }
+
+
+def compute_break_even_occupancy(
+    base_revenue: float,
+    base_occupancy: float,
+    variable_cost_ratio: float,
+    fixed_costs_total: float,
+) -> float:
+    if base_revenue <= 0 or base_occupancy <= 0:
+        return 0.0
+    contribution_margin = 1.0 - (variable_cost_ratio / 100.0)
+    if contribution_margin <= 0:
+        return 100.0
+    breakeven_occ = fixed_costs_total * base_occupancy / (base_revenue * contribution_margin)
+    return max(0.0, min(100.0, breakeven_occ))
+
+
+def compute_scenario_metrics(
+    scenario_occupancy: float,
+    base_occupancy: float,
+    base_revenue: float,
+    variable_cost_ratio: float,
+    fixed_costs_total: float,
+) -> dict:
+    revenue = base_revenue * safe_div(scenario_occupancy, base_occupancy) if base_occupancy > 0 else 0.0
+    ebitda_data = compute_ebitda_metrics(revenue, variable_cost_ratio, fixed_costs_total)
+    return {
+        "Occupancy": scenario_occupancy,
+        "Revenue": revenue,
+        "EBITDA": ebitda_data["ebitda"],
+        "EBITDA margin": ebitda_data["margin"],
+    }
+
 # =============================================================================
 # Auth guard
 # =============================================================================
@@ -202,23 +349,6 @@ with st.sidebar:
 # =============================================================================
 # Helpers
 # =============================================================================
-
-def safe_div(numerator: float, denominator: float) -> float:
-    return numerator / denominator if denominator else 0.0
-
-
-def normalize_shares(raw_shares: list[float]) -> list[float]:
-    total = sum(raw_shares)
-    if total == 0:
-        if not raw_shares:
-            return []
-        return [100.0 / len(raw_shares)] * len(raw_shares)
-    return [(share / total) * 100.0 for share in raw_shares]
-
-
-def fmt_money(value: float) -> str:
-    return f"{value:,.0f} €".replace(",", " ")
-
 SAVE_STATE_PREFIXES = ("bp_group_",)
 SAVE_STATE_KEYS = {
     "hotel_zone",
@@ -480,6 +610,33 @@ with c2:
 st.divider()
 
 # =============================================================================
+# Charges d'exploitation
+# =============================================================================
+
+st.subheader("💼 Charges d'exploitation")
+
+c1, c2 = st.columns(2)
+with c1:
+    variable_cost_ratio = st.number_input(
+        "Charges variables (% du CA)",
+        min_value=0.0,
+        max_value=100.0,
+        value=float(st.session_state.get("bp_group_variable_cost_ratio", 35.0)),
+        step=1.0,
+        key="bp_group_variable_cost_ratio",
+    )
+with c2:
+    fixed_costs_per_hotel = st.number_input(
+        "Charges fixes annuelles / hôtel (€)",
+        min_value=0.0,
+        value=float(st.session_state.get("bp_group_fixed_costs_per_hotel", 300000.0)),
+        step=10000.0,
+        key="bp_group_fixed_costs_per_hotel",
+    )
+
+st.divider()
+
+# =============================================================================
 # Calculations
 # =============================================================================
 
@@ -503,77 +660,127 @@ for brand, share_norm in zip(brand_inputs, normalized_shares):
         taux_remplissage = float(taux_remplissage_annuel)
         duree_sejour = float(duree_moyenne_sejour)
 
-    ca_marque = ca_total * (share_norm / 100.0)
-    ca_hotel_total = safe_div(ca_marque, nb_hotels) if nb_hotels > 0 else 0.0
+    brand_row = compute_brand_financials(
+        brand_name=brand_name,
+        nb_hotels=nb_hotels,
+        share_norm=share_norm,
+        ca_total=ca_total,
+        pct_hebergement=pct_hebergement,
+        nb_chambres=nb_chambres,
+        taux_remplissage=taux_remplissage,
+        duree_sejour=duree_sejour,
+        taux_prime_assurance=taux_prime_assurance,
+        taux_de_prise=taux_de_prise,
+    )
     
-    #if nb_hotels == 0:
-        #warnings.append(f"{brand_name}: nombre d'hôtels = 0 → CA/hôtel à 0.")
-
-    #if nb_chambres <= 0:
-        #warnings.append(f"{brand_name}: chambres moyennes ≤ 0 → nuitées/ADR à 0.")
-
-    #if taux_remplissage < 0 or taux_remplissage > 100:
-        #warnings.append(f"{brand_name}: taux de remplissage hors [0,100].")
-
-    #if duree_sejour < 1:
-        #warnings.append(f"{brand_name}: durée séjour < 1 nuit.")
-    
-    ca_hebergement_hotel = ca_hotel_total * (pct_hebergement / 100.0)
-
-    nuitees = max(nb_chambres, 0) * 365 * (max(taux_remplissage, 0) / 100.0)
-    adr = safe_div(ca_hebergement_hotel, nuitees) if nuitees > 0 else 0.0
-
-    if nuitees == 0:
+    if brand_row["Nuitées/an"] == 0:
         warnings.append(f"{brand_name}: nuitées = 0 → ADR à 0.")
 
-    if adr < 20 or adr > 1500:
-        warnings.append(f"{brand_name}: ADR atypique ({adr:,.0f} €).")
+    if brand_row["ADR"] < 20 or brand_row["ADR"] > 1500:
+        warnings.append(f"{brand_name}: ADR atypique ({brand_row['ADR']:,.0f} €).")
 
-    prix_sejour = adr * duree_sejour
-    nb_sejours = safe_div(nuitees, duree_sejour) if duree_sejour > 0 else 0.0
-
-    prime_sejour = prix_sejour * (taux_prime_assurance / 100.0)
-    prime_brute_annuelle = nb_sejours * prime_sejour * (taux_de_prise / 100.0)
-
-    rows.append({
-        "Marque": brand_name,
-        "Nb hôtels": nb_hotels,
-        "Part CA": share_norm,
-        "CA marque": ca_marque,
-        "CA/hôtel total": ca_hotel_total,
-        "% hébergement": pct_hebergement,
-        "CA hébergement/hôtel": ca_hebergement_hotel,
-        "Chambres moy.": nb_chambres,
-        "Occup. %": taux_remplissage,
-        "Nuitées/an": nuitees,
-        "ADR": adr,
-        "Durée séjour": duree_sejour,
-        "Prix séjour": prix_sejour,
-        "Nb séjours/an": nb_sejours,
-        "Prime %": taux_prime_assurance,
-        "Prise %": taux_de_prise,
-        "Prime brute/an": prime_brute_annuelle,
-    })
-
+    rows.append(brand_row)
+    
 if warnings:
     for msg in warnings:
         st.warning(msg)
 
 st.subheader("📊 Résultats groupe")
 
+st.markdown(
+    "This module provides a simplified but realistic financial projection for a hotel business, "
+    "based on industry-standard KPIs. It is designed for entrepreneurs, advisors, and investors."
+)
+
 result_df = pd.DataFrame(rows)
+group_summary = compute_group_summary(rows)
 
-sum_primes = float(result_df["Prime brute/an"].sum()) if not result_df.empty else 0.0
-sum_nuitees = float(result_df["Nuitées/an"].sum()) if not result_df.empty else 0.0
-sum_ca_hebergement = float(result_df["CA hébergement/hôtel"].sum()) if not result_df.empty else 0.0
+sum_primes = group_summary["sum_primes"]
+sum_nuitees = group_summary["sum_nuitees"]
+sum_ca_hebergement = group_summary["sum_ca_hebergement"]
+adr_moyen_pondere = group_summary["adr_moyen_pondere"]
+total_hotels = group_summary["total_hotels"]
+total_rooms = group_summary["total_rooms"]
+occupancy_rate = group_summary["occupancy_rate"]
+total_hebergement = group_summary["total_hebergement"]
 
-adr_moyen_pondere = safe_div(sum_ca_hebergement, sum_nuitees) if sum_nuitees > 0 else 0.0
+fixed_costs_total = fixed_costs_per_hotel * total_hotels
+ebitda_metrics = compute_ebitda_metrics(ca_total, variable_cost_ratio, fixed_costs_total)
+ebitda_margin_pct = ebitda_metrics["margin"] * 100.0
+revpar = safe_div(total_hebergement, total_rooms * 365) if total_rooms > 0 else 0.0
+break_even_occupancy = compute_break_even_occupancy(
+    base_revenue=ca_total,
+    base_occupancy=occupancy_rate,
+    variable_cost_ratio=variable_cost_ratio,
+    fixed_costs_total=fixed_costs_total,
+)
 
-k1, k2, k3 = st.columns(3)
+with st.expander("Key assumptions", expanded=False):
+    st.markdown(
+        "\n".join(
+            [
+                f"- **Nombre d'hôtels**: {total_hotels}",
+                f"- **Nombre de chambres (total)**: {total_rooms}",
+                f"- **ADR moyen pondéré**: {adr_moyen_pondere:,.0f} €".replace(",", " "),
+                f"- **Taux d'occupation moyen**: {occupancy_rate:.1f}%",
+                f"- **Charges variables**: {variable_cost_ratio:.1f}% du CA",
+                f"- **Charges fixes annuelles / hôtel**: {fmt_money(fixed_costs_per_hotel)}",
+            ]
+        )
+    )
 
-k1.metric("CA total groupe", fmt_money(ca_total))
-k2.metric("Prime brute annuelle", fmt_money(sum_primes))
-k3.metric("ADR moyen pondéré", f"{adr_moyen_pondere:,.0f} €".replace(",", " "))
+metric1, metric2, metric3, metric4 = st.columns(4)
+metric1.metric("Total Revenue (annual)", fmt_money(ca_total))
+metric2.metric("EBITDA", fmt_money(ebitda_metrics["ebitda"]))
+metric3.metric("EBITDA margin", f"{ebitda_margin_pct:.1f}%")
+metric4.metric("RevPAR", fmt_money(revpar))
+
+break_even_col, prime_col, adr_col = st.columns(3)
+break_even_col.metric("Break-even occupancy", f"{break_even_occupancy:.1f}%")
+prime_col.metric("Prime brute annuelle", fmt_money(sum_primes))
+adr_col.metric("ADR moyen pondéré", f"{adr_moyen_pondere:,.0f} €".replace(",", " "))
+
+st.subheader("📉 Scénarios d'occupation")
+
+downside_occupancy = max(20.0, occupancy_rate - 5.0)
+upside_occupancy = min(100.0, occupancy_rate + 5.0)
+
+scenario_inputs = [
+    ("Downside", downside_occupancy),
+    ("Base", occupancy_rate),
+    ("Upside", upside_occupancy),
+]
+
+scenario_rows = []
+for scenario_name, scenario_occupancy in scenario_inputs:
+    scenario_data = compute_scenario_metrics(
+        scenario_occupancy=scenario_occupancy,
+        base_occupancy=occupancy_rate,
+        base_revenue=ca_total,
+        variable_cost_ratio=variable_cost_ratio,
+        fixed_costs_total=fixed_costs_total,
+    )
+    scenario_rows.append({"Scenario": scenario_name, **scenario_data})
+
+scenario_df = pd.DataFrame(scenario_rows).set_index("Scenario")
+display_scenario_df = scenario_df.copy()
+display_scenario_df["Occupancy"] = display_scenario_df["Occupancy"].map(lambda value: f"{value:.1f}%")
+display_scenario_df["Revenue"] = display_scenario_df["Revenue"].map(fmt_money)
+display_scenario_df["EBITDA"] = display_scenario_df["EBITDA"].map(fmt_money)
+display_scenario_df["EBITDA margin"] = display_scenario_df["EBITDA margin"].map(
+    lambda value: f"{value * 100:.1f}%"
+)
+
+st.table(display_scenario_df)
+
+scenario_chart_df = scenario_df.reset_index()
+scenario_fig = px.bar(
+    scenario_chart_df,
+    x="Scenario",
+    y="EBITDA",
+    title="EBITDA par scénario",
+)
+st.plotly_chart(scenario_fig, use_container_width=True)
 
 st.divider()
 
@@ -583,7 +790,10 @@ st.divider()
 
 st.subheader("📋 Détail par marque")
 
-display_df = result_df.copy()
+display_df = result_df.drop(
+    columns=["CA hébergement total", "Room nights occupied", "Room nights available"],
+    errors="ignore",
+)
 
 if not display_df.empty:
     numeric_cols = [
@@ -621,6 +831,13 @@ if not result_df.empty:
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("Graphique indisponible (pas de données).")
+
+st.markdown(
+    "Under these assumptions, the hotel generates annual revenues of "
+    f"{fmt_money(ca_total)}, with an EBITDA of {fmt_money(ebitda_metrics['ebitda'])} "
+    f"({ebitda_margin_pct:.1f}% margin). The estimated break-even occupancy rate is around "
+    f"{break_even_occupancy:.1f}%, meaning the project becomes profitable above this level of occupancy."
+)
 
 st.divider()
 

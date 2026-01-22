@@ -43,10 +43,10 @@ def compute_bp_simple(
     take_rate: float,
     price_rate: float,
     neat_commission: float,
+    years: int = 5,
 ) -> pd.DataFrame:
-    years = [1, 2, 3]
     rows = []
-    for y in years:
+    for y in range(1,years+1):
         hotel_rev = hotel_rev_y1 * ((1 + market_growth) ** (y - 1))
         direct_rev = hotel_rev * direct_rate
         premium = direct_rev * take_rate * price_rate

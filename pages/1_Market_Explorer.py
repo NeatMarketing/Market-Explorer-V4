@@ -563,7 +563,7 @@ with tab_explorer:
 # General BP 
 # -----------------------
 
-    st.subheader("BP Général — Premium & Commission (3 years)")
+    st.subheader("BP Général — Premium & Commission")
 
     # Default base: your filtered revenue KPI (already in M$)
     
@@ -641,15 +641,16 @@ with tab_explorer:
         take_rate,
         price_rate,
         neat_commission,
+        years = 5,
     )
 
-    # KPI cards (Year 3)
+    # KPI cards
     
-    year3 = df_bp.iloc[-1]
+    year5 = df_bp.iloc[-1]
     k1, k2, k3 = st.columns(3)
-    k1.metric("Premium (Year 3)", fmt_money(float(year3["Premium (M$)"])))
-    k2.metric("Neat revenue (Year 3)", fmt_money(float(year3["Neat revenue (M$)"])))
-    k3.metric("Hotel revenue (Year 3)", fmt_money(float(year3["Hotel revenue (M$)"])))
+    k1.metric("Premium (Year 5)", fmt_money(float(year5["Premium (M$)"])))
+    k2.metric("Neat revenue (Year 5)", fmt_money(float(year5["Neat revenue (M$)"])))
+    k3.metric("Hotel revenue (Year 5)", fmt_money(float(year5["Hotel revenue (M$)"])))
 
     # Chart
     
