@@ -37,7 +37,7 @@ def company_label(row: pd.Series) -> str:
     return f"{row['Name']} ({label_country})" if label_country else str(row["Name"])
 
 def compute_bp_simple(
-    hotel_rev_y1: float,
+    base_rev_y1: float,
     market_growth: float,
     direct_rate: float,
     take_rate: float,

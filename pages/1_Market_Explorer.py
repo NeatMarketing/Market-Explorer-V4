@@ -563,7 +563,9 @@ with tab_explorer:
 # General BP 
 # -----------------------
 
-    st.subheader("BP Général — Premium & Commission")
+    is_airline_vertical = str(vertical).lower() == "airline"
+    bp_vertical_label = "Airline" if is_airline_vertical else "Hotel"
+    st.subheader(f"BP Général — Premium & Commission ({bp_vertical_label})")
 
     # Default base: your filtered revenue KPI (already in M$)
     
@@ -575,12 +577,22 @@ with tab_explorer:
         
         st.subheader("Market")
         base_hotel_rev_m = st.number_input(
-            "Hotel revenue (Year 1, M$)",
+            f"{bp_vertical_label} revenue (Year 1, M$)",
             min_value=0.0,
             value=base_hotel_rev_m,
-            step=1.0,
+            step=1.0,    
         )
         
+        ticket_share_pct = 100.0
+        if is_airline_vertical:
+            ticket_share_pct = st.number_input(
+                "Ticket sales share (%)",
+                min_value=0.0,
+                max_value=100.0,
+                value=80.0,
+                step=1.0,
+            )
+            
         market_growth_pct = st.number_input(
             "Market growth / year (%)",
             min_value=0.0,
@@ -630,12 +642,20 @@ with tab_explorer:
     
     market_growth = min(max(market_growth_pct / 100.0, 0.0), 2.0)
     direct_rate = min(max(direct_rate_pct / 100.0, 0.0), 1.0)
+    ticket_share = min(max(ticket_share_pct / 100.0, 0.0), 1.0)
     take_rate = min(max(take_rate_pct / 100.0, 0.0), 1.0)
     price_rate = min(max(price_rate_pct / 100.0, 0.0), 1.0)
     neat_commission = min(max(neat_comm_pct / 100.0, 0.0), 1.0)
 
+    if is_airline_vertical:
+        assurable_rev_m = base_hotel_rev_m * ticket_share
+        st.caption(f"Assurable revenue from ticket sales (Y1): {assurable_rev_m:,.1f} M$".replace(",", " "))
+    else:
+        assurable_rev_m = base_hotel_rev_m
+
+
     df_bp = compute_bp_simple(
-        base_hotel_rev_m,
+        assurable_rev_m,
         market_growth,
         direct_rate,
         take_rate,
@@ -650,7 +670,8 @@ with tab_explorer:
     k1, k2, k3 = st.columns(3)
     k1.metric("Premium (Year 5)", fmt_money(float(year5["Premium (M$)"])))
     k2.metric("Neat revenue (Year 5)", fmt_money(float(year5["Neat revenue (M$)"])))
-    k3.metric("Hotel revenue (Year 5)", fmt_money(float(year5["Hotel revenue (M$)"])))
+    year5_market_rev = base_hotel_rev_m * ((1 + market_growth) ** 4)
+    k3.metric(f"{bp_vertical_label} revenue (Year 5)", fmt_money(float(year5_market_rev)))
 
     # Chart
     
