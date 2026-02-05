@@ -96,7 +96,7 @@ tab_explorer, tab_overview = st.tabs(["Market Explorer", "Market Overview"])
 # =============================================================================
 
 st.session_state.setdefault("vertical", None)
-st.session_state.setdefault("subvertical", None)
+st.session_state.setdefault("subverticals", None)
 st.session_state.setdefault("tier_filter", "All")
 st.session_state.setdefault("top_n", 10)
 
@@ -154,24 +154,38 @@ with tab_explorer:
             st.warning("Aucune sous-verticale trouvée pour cette verticale.")
             st.stop()
 
-        subverticals_ui = ["All"] + subverticals
-        default_subvertical = st.session_state.get("subvertical") or "All"
-        subvertical_index = (
-            subverticals_ui.index(default_subvertical) if default_subvertical in subverticals_ui else 0
-        )
+        all_subverticals_selected = st.checkbox("All sub-verticals", value=True)
+        if all_subverticals_selected:
+            selected_subverticals = subverticals
+        else:
+            stored_subverticals = st.session_state.get("subverticals") or []
+            default_subverticals = (
+                [s for s in stored_subverticals if s in subverticals]
+                or subverticals[: min(len(subverticals), 5)]
+            )
+            selected_subverticals = st.multiselect(
+                "Sous-verticales",
+                subverticals,
+                default=default_subverticals,
+                key="subverticals",
+                format_func=titleize_slug,
+            )
 
-        subvertical = st.selectbox(
-            "Sous-verticale",
-            subverticals_ui,
-            key="subvertical",
-            index=subvertical_index,
-            format_func=lambda v: "All Sub-verticals" if v == "All" else titleize_slug(v),
-        )
+        if not selected_subverticals:
+            st.warning("Veuillez sélectionner au moins une sous-verticale.")
+            st.stop()
 
-        if subvertical == "All":
+        if all_subverticals_selected:
             ds_scope = ds_vertical
         else:
-            ds_scope = [d for d in ds_vertical if d.subvertical == subvertical]
+            ds_scope = [d for d in ds_vertical if d.subvertical in selected_subverticals]
+
+        if all_subverticals_selected:
+            subvertical_label = "All Sub-verticals"
+        elif len(selected_subverticals) <= 3:
+            subvertical_label = ", ".join(titleize_slug(s) for s in selected_subverticals)
+        else:
+            subvertical_label = f"{len(selected_subverticals)} Sub-verticals"
 
         if not ds_scope:
             st.warning("Aucun dataset trouvé pour ce couple verticale/sous-verticale.")
@@ -183,6 +197,7 @@ with tab_explorer:
             st.stop()
 
         all_countries_selected = st.checkbox("All countries", value=True)
+        
         if all_countries_selected:
             selected_countries = countries_scope
         else:
@@ -230,7 +245,7 @@ with tab_explorer:
         files = ", ".join([f"{titleize_slug(d.country)}: {d.path.name}" for d in match])
         st.caption(
             f"Source: {titleize_slug(vertical) if vertical != 'All' else 'All Verticals'} / "
-            f"{titleize_slug(subvertical) if subvertical != 'All' else 'All Sub-verticals'} — "
+            f"{subvertical_label} — "
             f"{'All Countries' if len(selected_countries) == len(countries_scope) else 'Selected Countries'} — {files}"
         )
     
@@ -366,7 +381,7 @@ with tab_explorer:
     # -----------------------
     
     scope_vertical = "All Verticals" if vertical == "All" else titleize_slug(vertical)
-    scope_subvertical = "All Sub-verticals" if subvertical == "All" else titleize_slug(subvertical)
+    scope_subvertical = subvertical_label
     if len(selected_countries) == len(countries_scope):
         scope_countries = "All Countries"
     elif len(selected_countries) <= 3:
@@ -538,7 +553,9 @@ with tab_explorer:
 # General BP 
 # -----------------------
 
-    is_airline_vertical = str(subvertical).lower() == "airline"
+    is_airline_vertical = (
+        len(selected_subverticals) == 1 and str(selected_subverticals[0]).lower() == "airline"
+    )
     bp_vertical_label = "Airline" if is_airline_vertical else "Hotel"
     st.subheader(f"BP Général — Premium & Commission ({bp_vertical_label})")
 
@@ -730,7 +747,10 @@ with tab_explorer:
         on_select="rerun",
     )
 
-    export_tag = f"{vertical}_{subvertical}"
+    subvertical_export = (
+        "all_subverticals" if all_subverticals_selected else "-".join(selected_subverticals)
+    )
+    export_tag = f"{vertical}_{subvertical_export}"
     countries_tag = "all_countries" if len(selected_countries) == len(countries_scope) else "selected_countries"
     st.download_button(
         label="Download Target List (CSV)",
@@ -791,8 +811,8 @@ with tab_explorer:
                 "tiering": tier_filter,
                 "zone": scope_countries,
                 "market": vertical,
-                "vertical": subvertical,
-                "subvertical": subvertical,
+                "vertical": selected_subverticals,
+                "subvertical": selected_subverticals,
                 "countries_scope": scope_countries,
                 "countries": list(selected_countries),
                 "source": "market_explorer",
@@ -870,9 +890,7 @@ with tab_explorer:
     with cA:
         if st.button("💾 Save note", use_container_width=True):
             display_vertical = "All Verticals" if vertical == "All" else titleize_slug(vertical)
-            display_subvertical = (
-                "All Sub-verticals" if subvertical == "All" else titleize_slug(subvertical)
-            )
+            display_subvertical = subvertical_label
             notes = upsert_note(
                 notes,
                 key,
