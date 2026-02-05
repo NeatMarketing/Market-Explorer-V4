@@ -652,6 +652,8 @@ with tab_explorer:
         st.caption(f"Assurable revenue from ticket sales (Y1): {assurable_rev_m:,.1f} M$".replace(",", " "))
     else:
         assurable_rev_m = base_hotel_rev_m
+        
+    revenue_label = "Assurable revenue (M$)" if is_airline_vertical else f"{bp_vertical_label} revenue (M$)"
 
 
     df_bp = compute_bp_simple(
@@ -662,6 +664,7 @@ with tab_explorer:
         price_rate,
         neat_commission,
         years = 5,
+        revenue_label=revenue_label
     )
 
     # KPI cards
