@@ -96,7 +96,7 @@ tab_explorer, tab_overview = st.tabs(["Market Explorer", "Market Overview"])
 # =============================================================================
 
 st.session_state.setdefault("vertical", None)
-st.session_state.setdefault("subverticals", None)
+st.session_state.setdefault("subverticals", [])
 st.session_state.setdefault("tier_filter", "All")
 st.session_state.setdefault("top_n", 10)
 
@@ -158,6 +158,8 @@ with tab_explorer:
         if all_subverticals_selected:
             selected_subverticals = subverticals
         else:
+            if st.session_state.get("subverticals") is None:
+                st.session_state["subverticals"] = []
             stored_subverticals = st.session_state.get("subverticals") or []
             default_subverticals = (
                 [s for s in stored_subverticals if s in subverticals]
