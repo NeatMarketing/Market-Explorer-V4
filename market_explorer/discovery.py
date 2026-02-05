@@ -92,19 +92,54 @@ def parse_dataset_filename_v2(path: Path) -> Optional[DatasetInfoV2]:
     return DatasetInfoV2(vertical=vertical, subvertical=subvertical, country=country, path=path)
 
 
+def parse_country_from_filename(path: Path) -> Optional[str]:
+    stem = path.stem
+
+    if stem.endswith("_cleaned"):
+        stem = stem[: -len("_cleaned")]
+
+    tokens = stem.split("_")
+    if len(tokens) < 3:
+        return None
+
+    country = "_".join(tokens[2:]).strip().lower()
+    if not country:
+        return None
+
+    return country
+
 def list_datasets_v2(data_dir: Path) -> List[DatasetInfoV2]:
     if not data_dir.exists():
         return []
 
     out: List[DatasetInfoV2] = []
     for p in sorted(data_dir.rglob("*.csv")):
+        try:
+            rel_parts = p.relative_to(data_dir).parts
+        except ValueError:
+            rel_parts = ()
+
+        if len(rel_parts) >= 3:
+            vertical = rel_parts[0].strip().lower()
+            subvertical = rel_parts[1].strip().lower()
+            country = parse_country_from_filename(p)
+            if vertical and subvertical and country:
+                out.append(
+                    DatasetInfoV2(
+                        vertical=vertical,
+                        subvertical=subvertical,
+                        country=country,
+                        path=p,
+                    )
+                )
+                continue
+
         info = parse_dataset_filename_v2(p)
         if info:
             out.append(info)
 
     return out
-
-
+    
 class DatasetCatalog:
     def __init__(self, datasets: List[DatasetInfo]):
         self.datasets = datasets
