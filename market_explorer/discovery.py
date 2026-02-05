@@ -22,6 +22,14 @@ class DatasetInfo:
     path: Path
 
 
+@dataclass(frozen=True)
+class DatasetInfoV2:
+    vertical: str
+    subvertical: str
+    country: str
+    path: Path
+
+
 def parse_dataset_filename(path: Path) -> Optional[DatasetInfo]:
     stem = path.stem
 
@@ -59,6 +67,39 @@ def list_datasets(data_dir: Path) -> List[DatasetInfo]:
             out.append(DatasetInfo(market=info.market, vertical=info.vertical, zone="france", path=info.path))
             out.append(DatasetInfo(market=info.market, vertical=info.vertical, zone="europe", path=info.path))
         else:
+            out.append(info)
+
+    return out
+
+
+def parse_dataset_filename_v2(path: Path) -> Optional[DatasetInfoV2]:
+    stem = path.stem
+
+    if stem.endswith("_cleaned"):
+        stem = stem[: -len("_cleaned")]
+
+    tokens = stem.split("_")
+    if len(tokens) < 3:
+        return None
+
+    vertical = tokens[0].strip().lower()
+    subvertical = tokens[1].strip().lower()
+    country = "_".join(tokens[2:]).strip().lower()
+
+    if not vertical or not subvertical or not country:
+        return None
+
+    return DatasetInfoV2(vertical=vertical, subvertical=subvertical, country=country, path=path)
+
+
+def list_datasets_v2(data_dir: Path) -> List[DatasetInfoV2]:
+    if not data_dir.exists():
+        return []
+
+    out: List[DatasetInfoV2] = []
+    for p in sorted(data_dir.rglob("*.csv")):
+        info = parse_dataset_filename_v2(p)
+        if info:
             out.append(info)
 
     return out

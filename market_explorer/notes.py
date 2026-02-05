@@ -51,9 +51,9 @@ def upsert_note(
     display_name: str,
     country: str,
     linkedin_url: str,
-    zone: str,
-    market: str,
     vertical: str,
+    subvertical: str,
+    countries_scope: str,
 ) -> Dict[str, Dict[str, Any]]:
     """Add or update a note entry for a company key."""
     updated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -61,9 +61,9 @@ def upsert_note(
         "display_name": display_name,
         "country": country,
         "linkedin_url": linkedin_url,
-        "zone": zone,
-        "market": market,
         "vertical": vertical,
+        "subvertical": subvertical,
+        "countries_scope": countries_scope,
         "tag": tag,
         "note": note,
         "updated_at": updated_at,

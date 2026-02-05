@@ -11,7 +11,7 @@ import plotly.express as px
 import math
 
 from market_explorer.auth import require_auth
-from market_explorer.discovery import DatasetCatalog, list_datasets
+from market_explorer.discovery import list_datasets_v2
 from market_explorer.data_io import load_dataset, to_csv_bytes
 
 from market_explorer.analytics import (
@@ -24,19 +24,12 @@ from market_explorer.analytics import (
 
 from market_explorer.tiering import add_tier, filter_by_tier
 
-from market_explorer.labels import (
-    titleize_slug,
-    zone_label,
-    market_label,
-    zone_label_ui,
-    zones_in_scope_from_ui,
-)
+from market_explorer.labels import titleize_slug
 
 from market_explorer.market_explorer_helpers import (
     company_label,
     compute_bp_simple,
     fmt_money,
-    format_zone_option,
     get_company_context_row,
 )
 
@@ -47,19 +40,6 @@ from market_explorer.notes import (
     upsert_note,
 )
 
-FRANCE_OVERSEAS = [
-    "Guadeloupe",
-    "Martinique",
-    "Guyana",
-    "Réunion",
-    "French Polynesia",
-    "New Caledonia",
-    "Mayotte",
-    "Saint Pierre and Miquelon",
-    "Wallis and Futuna",
-    "Saint Martin",
-    "Saint Barthélemy",
-]
 # =============================================================================
 # Authentification sécurité
 # =============================================================================
@@ -70,10 +50,9 @@ profile = st.session_state.get("profile")
 # =============================================================================
 # Trajectoire
 # =============================================================================
-DATA_DIR = Path(__file__).resolve().parents[1] / "Data_Clean"
-catalog = DatasetCatalog.from_dir(DATA_DIR)
+DATA_DIR = Path(__file__).resolve().parents[1] / "Data_Clean2"
+datasets_all = list_datasets_v2(DATA_DIR)
 
-datasets_all = list_datasets(DATA_DIR)
 if not datasets_all:
     st.error(f"Aucun CSV exploitable trouvé dans {DATA_DIR}")
     st.stop()
@@ -116,9 +95,8 @@ tab_explorer, tab_overview = st.tabs(["Market Explorer", "Market Overview"])
 # Critères par défaut 
 # =============================================================================
 
-st.session_state.setdefault("zone", "france")
-st.session_state.setdefault("market", "travel")
-st.session_state.setdefault("vertical", "hotel")
+st.session_state.setdefault("vertical", None)
+st.session_state.setdefault("subvertical", None)
 st.session_state.setdefault("tier_filter", "All")
 st.session_state.setdefault("top_n", 10)
 
@@ -148,53 +126,14 @@ with tab_explorer:
 
         
         st.header("Scope")
-        
-        # Zone
-        zone = st.selectbox(
-            "Zone",
-            ["france", "eu", "eu_fr"],
-            key="zone",
-            format_func=format_zone_option,
-        )
+        verticals = sorted({d.vertical for d in datasets_all})
 
-        zones_in_scope = zones_in_scope_from_ui(zone)
-        
-        ds_zone = [d for d in datasets_all if d.zone in zones_in_scope]
-
-        if not ds_zone:
-            st.warning("Aucun dataset trouvé pour cette zone.")
-            st.stop()
-            
-        # Market
-        
-        markets = sorted({d.market for d in ds_zone})
-        markets_ui = ["All"] + markets
-        default_market = st.session_state.get("market", "All")
-        market_index = markets_ui.index(default_market) if default_market in markets_ui else 0
-
-        market = st.selectbox(
-            "Market",
-            markets_ui,
-            key="market",
-            index=market_index,
-            format_func=lambda m: "All Markets" if m == "All" else market_label(m),
-        )
-
-        # datasets in zone + market
-
-        if market == "All":
-            ds_scope = ds_zone
-        else:
-            ds_scope = [d for d in ds_zone if d.market == market]
-
-        verticals = sorted({d.vertical for d in ds_scope})
-        
         if not verticals:
-            st.warning("Aucune verticale trouvée pour ce couple Zone/Market.")
+            st.warning("Aucune verticale trouvée dans Data_Clean_V2.")
             st.stop()
 
         verticals_ui = ["All"] + verticals
-        default_vertical = st.session_state.get("vertical", "All")
+        default_vertical = st.session_state.get("vertical") or "All"
         vertical_index = verticals_ui.index(default_vertical) if default_vertical in verticals_ui else 0
 
         vertical = st.selectbox(
@@ -204,27 +143,77 @@ with tab_explorer:
             index=vertical_index,
             format_func=lambda v: "All Verticals" if v == "All" else titleize_slug(v),
         )
+
+        if vertical == "All":
+            ds_vertical = datasets_all
+        else:
+            ds_vertical = [d for d in datasets_all if d.vertical == vertical]
+
+        subverticals = sorted({d.subvertical for d in ds_vertical})
+        if not subverticals:
+            st.warning("Aucune sous-verticale trouvée pour cette verticale.")
+            st.stop()
+
+        subverticals_ui = ["All"] + subverticals
+        default_subvertical = st.session_state.get("subvertical") or "All"
+        subvertical_index = (
+            subverticals_ui.index(default_subvertical) if default_subvertical in subverticals_ui else 0
+        )
+
+        subvertical = st.selectbox(
+            "Sous-verticale",
+            subverticals_ui,
+            key="subvertical",
+            index=subvertical_index,
+            format_func=lambda v: "All Sub-verticals" if v == "All" else titleize_slug(v),
+        )
+
+        if subvertical == "All":
+            ds_scope = ds_vertical
+        else:
+            ds_scope = [d for d in ds_vertical if d.subvertical == subvertical]
+
+        if not ds_scope:
+            st.warning("Aucun dataset trouvé pour ce couple verticale/sous-verticale.")
+            st.stop()
+
+        countries_scope = sorted({d.country for d in ds_scope})
+        if not countries_scope:
+            st.warning("Aucun pays trouvé pour ce couple verticale/sous-verticale.")
+            st.stop()
+
+        all_countries_selected = st.checkbox("All countries", value=True)
+        if all_countries_selected:
+            selected_countries = countries_scope
+        else:
+            selected_countries = st.multiselect(
+                "Countries",
+                countries_scope,
+                default=countries_scope[: min(len(countries_scope), 5)],
+                format_func=titleize_slug,
+            )
     # -----------------------
     # Load dataset(s)
     # -----------------------
     
-    if vertical == "All":
-        match = ds_scope
-    else:
-        match = [d for d in ds_scope if d.vertical == vertical]
+    if not selected_countries:
+        st.warning("Veuillez sélectionner au moins un pays.")
+        st.stop()
+
+    match = [d for d in ds_scope if d.country in selected_countries]
 
     if not match:
-        st.warning("Dataset introuvable pour ce couple market/vertical/zone.")
+        st.warning("Dataset introuvable pour ce scope verticale/sous-verticale/pays.")
         st.stop()
 
     dfs = []
     for d in match:
-        tmp = load_dataset(d.path, zone=d.zone)
+        tmp = load_dataset(d.path)
         if tmp is not None and not tmp.empty:
             dfs.append(tmp)
 
     if not dfs:
-        st.warning("Dataset introuvable ou vide pour ce couple market/vertical/zone.")
+        st.warning("Dataset introuvable ou vide pour ce scope verticale/sous-verticale/pays.")
         st.stop()
 
     df = pd.concat(dfs, ignore_index=True)
@@ -234,40 +223,25 @@ with tab_explorer:
     if len(match) == 1:
         dataset_info = match[0]
         st.caption(
-            f"Source: {market_label(dataset_info.market)} / {titleize_slug(dataset_info.vertical)} — "
-            f"{zone_label(dataset_info.zone)} — {dataset_info.path.name}"
+            f"Source: {titleize_slug(dataset_info.vertical)} / {titleize_slug(dataset_info.subvertical)} — "
+            f"{titleize_slug(dataset_info.country)} — {dataset_info.path.name}"
         )
     else:
-        files = ", ".join([f"{zone_label(d.zone)}: {d.path.name}" for d in match])
+        files = ", ".join([f"{titleize_slug(d.country)}: {d.path.name}" for d in match])
         st.caption(
-            f"Source: {market_label(market) if market != 'All' else 'All Markets'} / "
-            f"{titleize_slug(vertical) if vertical != 'All' else 'All Verticals'} — "
-            f"{zone_label_ui(zone)} — {files}"
+            f"Source: {titleize_slug(vertical) if vertical != 'All' else 'All Verticals'} / "
+            f"{titleize_slug(subvertical) if subvertical != 'All' else 'All Sub-verticals'} — "
+            f"{'All Countries' if len(selected_countries) == len(countries_scope) else 'Selected Countries'} — {files}"
         )
     
     # -----------------------
-    # Sidebar: Zone country filter (independent from tiering)
+    # Sidebar: Country summary (independent from tiering)
     # -----------------------
-    countries_scope = sorted(
-        [c for c in df.get("Country", pd.Series(dtype=object)).dropna().unique().tolist() if str(c).strip()]
-    )
-
     with st.sidebar:
-        st.subheader("Zone")
-
-        if zone == "france":
-            country = None
-            st.caption("France includes mainland France and all overseas territories.")
-        else:
-            all_countries_selected = st.checkbox("All countries", value=True)
-            if all_countries_selected:
-                country = countries_scope
-            else:
-                country = st.multiselect(
-                    "Countries",
-                    countries_scope,
-                    default=countries_scope[: min(len(countries_scope), 5)],
-                )
+        st.subheader("Pays")
+        st.caption(
+            f"{len(selected_countries)} pays sélectionné(s) sur {len(countries_scope)} disponibles."
+        )
 
         st.divider()
 
@@ -371,16 +345,10 @@ with tab_explorer:
     # IMPORTANT: UI uses "All" as a sentinel meaning "no filter".
     # analytics.apply_filters expects None (or an empty iterable) to disable a filter.
     
-    if zone == "france":
+    if len(selected_countries) == len(countries_scope):
         country_f = None
-    elif zone == "eu_fr" and country:
-        selected_countries = list(country)
-        if "France" in selected_countries:
-            country_f = sorted(set(selected_countries) | set(["France"] + FRANCE_OVERSEAS))
-        else:
-            country_f = selected_countries
     else:
-        country_f = None if not country else list(country)
+        country_f = list(selected_countries)
     company_type_f = None if company_type == "All" else [company_type]
     sector_f = None if sector == "All" else [sector]
 
@@ -396,9 +364,15 @@ with tab_explorer:
     # -----------------------
     # Scope banner
     # -----------------------
-    scope_market = "All Markets" if market == "All" else market_label(market)
+    
     scope_vertical = "All Verticals" if vertical == "All" else titleize_slug(vertical)
-    scope_zone = zone_label_ui(zone)
+    scope_subvertical = "All Sub-verticals" if subvertical == "All" else titleize_slug(subvertical)
+    if len(selected_countries) == len(countries_scope):
+        scope_countries = "All Countries"
+    elif len(selected_countries) <= 3:
+        scope_countries = ", ".join(titleize_slug(c) for c in selected_countries)
+    else:
+        scope_countries = f"{len(selected_countries)} Countries"
     scope_tier = TIER_UI.get(tier_filter, tier_filter)
 
     st.markdown(
@@ -411,7 +385,7 @@ with tab_explorer:
             border-radius: 4px;
         ">
             <div style="font-size: 18px; font-weight: 600; color: {C_FONCE};">
-                {scope_market} / {scope_vertical} — {scope_zone}
+                {scope_vertical} / {scope_subvertical} — {scope_countries}
             </div>
             <div style="margin-top: 4px; font-size: 14px;">
                 <strong>{scope_tier}</strong> · {len(df_f)} target companies
@@ -439,8 +413,9 @@ with tab_explorer:
 
     # Insights (support both dict-based and list-based contracts)
     insights = compute_insights(df_f)
+    single_country_scope = len(selected_countries) == 1
     if isinstance(insights, dict) and insights:
-        if zone == "france":
+        if single_country_scope:
             st.info(
                 "📌 **Market insight** — "
                 "Top 5 companies represent "
@@ -461,9 +436,9 @@ with tab_explorer:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        if zone == "france":
+        if single_country_scope:
             st.subheader("Top Countries (by Revenue)")
-            st.info("Geographic split is not relevant for France (single-country scope).")
+            st.info("Geographic split is not relevant for a single-country scope.")
         else:
             st.subheader("Top Countries (by Revenue)")
             by_country = top_by_country(df_f)
@@ -563,7 +538,7 @@ with tab_explorer:
 # General BP 
 # -----------------------
 
-    is_airline_vertical = str(vertical).lower() == "airline"
+    is_airline_vertical = str(subvertical).lower() == "airline"
     bp_vertical_label = "Airline" if is_airline_vertical else "Hotel"
     st.subheader(f"BP Général — Premium & Commission ({bp_vertical_label})")
 
@@ -755,11 +730,12 @@ with tab_explorer:
         on_select="rerun",
     )
 
-    export_tag = f"{market}_{vertical}"
+    export_tag = f"{vertical}_{subvertical}"
+    countries_tag = "all_countries" if len(selected_countries) == len(countries_scope) else "selected_countries"
     st.download_button(
         label="Download Target List (CSV)",
         data=to_csv_bytes(target),
-        file_name=f"targets_{export_tag}_{zone}.csv",
+        file_name=f"targets_{export_tag}_{countries_tag}.csv",
         mime="text/csv",
     )
 
@@ -813,9 +789,12 @@ with tab_explorer:
                 **context,
                 "dataset": dataset_label,
                 "tiering": tier_filter,
-                "zone": zone,
-                "market": market,
-                "vertical": vertical,
+                "zone": scope_countries,
+                "market": vertical,
+                "vertical": subvertical,
+                "subvertical": subvertical,
+                "countries_scope": scope_countries,
+                "countries": list(selected_countries),
                 "source": "market_explorer",
             }
             try:
@@ -890,9 +869,10 @@ with tab_explorer:
 
     with cA:
         if st.button("💾 Save note", use_container_width=True):
-            display_zone = zone_label_ui(zone)
-            display_market = "All Markets" if market == "All" else market_label(market)
             display_vertical = "All Verticals" if vertical == "All" else titleize_slug(vertical)
+            display_subvertical = (
+                "All Sub-verticals" if subvertical == "All" else titleize_slug(subvertical)
+            )
             notes = upsert_note(
                 notes,
                 key,
@@ -901,8 +881,8 @@ with tab_explorer:
                 display_name=selected_name,
                 country=selected_country,
                 linkedin_url=linkedin_url,
-                zone=display_zone,
-                market=display_market,
+                subvertical=display_subvertical,
+                countries_scope=scope_countries,
                 vertical=display_vertical,
             )
             save_notes(profile, notes)
@@ -926,72 +906,81 @@ with tab_explorer:
 with tab_overview:
     st.subheader("Market Share Overview")
 
+    all_countries_overview = sorted({d.country for d in datasets_all})
+    all_verticals_overview = sorted({d.vertical for d in datasets_all})
+
     c1, c2 = st.columns([1, 1])
     with c1:
-        zone_ms = st.selectbox(
-            "Zone (Overview)",
-            ["france", "eu", "eu_fr"],
+        vertical_ms = st.selectbox(
+            "Vertical",
+            all_verticals_overview,
             index=0,
-            format_func=format_zone_option,
+            format_func=titleize_slug,
         )
-
-    zones_ms = zones_in_scope_from_ui(zone_ms)
-
-    markets_focus = ["travel", "goods", "financial_services", "ticketing"]
     
     with c2:
-        market_ms = st.selectbox(
-            "Market",
-            markets_focus,
-            index=0,
-            format_func=market_label,
-        )
+        include_all_countries = st.checkbox("All countries (overview)", value=True)
+        if include_all_countries:
+            countries_ms = all_countries_overview
+        else:
+            countries_ms = st.multiselect(
+                "Countries",
+                all_countries_overview,
+                default=all_countries_overview[: min(len(all_countries_overview), 5)],
+                format_func=titleize_slug,
+            )
+    # 1) Vertical shares (macro)
 
-    # 1) Market shares (macro)
-    
-    ds_zone = [d for d in datasets_all if d.zone in zones_ms and d.market in markets_focus]
-    
-    if not ds_zone:
-        st.warning(f"No datasets found for zone={zone_ms}.")
+    ds_country = [d for d in datasets_all if d.country in countries_ms]
+    if not ds_country:
+        st.warning("No datasets found for the selected countries.")
         st.stop()
 
-    rows_market = []
-    for d in ds_zone:
+    rows_vertical = []
+    for d in ds_country:
         try:
-            tmp = load_dataset(d.path, zone=d.zone)
+           tmp = load_dataset(d.path)
         except Exception as e:
             st.warning(f"Could not load {d.path.name}: {e}")
             continue
         if tmp.empty:
             continue
-        rows_market.append({"Market": d.market, "Revenue_M": float(tmp["Revenue_M"].sum())})
+        rows_vertical.append({"Vertical": d.vertical, "Revenue_M": float(tmp["Revenue_M"].sum())})
 
-    if not rows_market:
-        st.warning("No usable revenue data found for the selected zone.")
+    if not rows_vertical:
+        st.warning("No usable revenue data found for the selected countries.")
         st.stop()
 
-    df_market = pd.DataFrame(rows_market).groupby("Market", as_index=False)["Revenue_M"].sum()
-    total_zone = float(df_market["Revenue_M"].sum())
-    if total_zone <= 0:
-        st.warning("Total revenue is 0 for the selected zone (nothing to display).")
+    df_vertical = pd.DataFrame(rows_vertical).groupby("Vertical", as_index=False)["Revenue_M"].sum()
+    total_scope = float(df_vertical["Revenue_M"].sum())
+    if total_scope <= 0:
+        st.warning("Total revenue is 0 for the selected countries (nothing to display).")
         st.stop()
 
-    df_market["Share_%"] = (df_market["Revenue_M"] / total_zone * 100).round(1)
-    df_market["Market_label"] = df_market["Market"].map(market_label).fillna(df_market["Market"])
-    df_plot_market = df_market.sort_values("Revenue_M", ascending=True).copy()
-    df_plot_market["Share_label"] = df_plot_market["Share_%"].astype(str) + "%"
+    df_vertical["Share_%"] = (df_vertical["Revenue_M"] / total_scope * 100).round(1)
+    df_vertical["Vertical_label"] = df_vertical["Vertical"].map(titleize_slug)
+    df_plot_vertical = df_vertical.sort_values("Revenue_M", ascending=True).copy()
+    df_plot_vertical["Share_label"] = df_plot_vertical["Share_%"].astype(str) + "%"
+
+    scope_label = (
+        "All Countries"
+        if len(countries_ms) == len(all_countries_overview)
+        else ", ".join(titleize_slug(c) for c in countries_ms[:3])
+    )
+    if len(countries_ms) > 3 and len(countries_ms) != len(all_countries_overview):
+        scope_label = f"{scope_label} (+{len(countries_ms) - 3})"
 
     st.caption(
-        f"Zone: {zone_label_ui(zone_ms)} — Total revenue analyzed: {total_zone:,.0f} M$ "
-        "(sum of all vertical datasets in Data_Clean for this zone)."
+        f"Countries: {scope_label} — Total revenue analyzed: {total_scope:,.0f} M$ "
+        "(sum of all datasets in Data_Clean_V2 for the selected countries)."
     )
 
     fig = px.bar(
-        df_plot_market,
+        df_plot_vertical,
         x="Revenue_M",
-        y="Market_label",
+        y="Vertical_label",
         orientation="h",
-        labels={"Revenue_M": "Revenue (M$)", "Market_label": ""},
+        labels={"Revenue_M": "Revenue (M$)", "Vertical_label": ""},
         text="Share_label",
         color_discrete_sequence=[C_FONCE],
     )
@@ -1007,17 +996,17 @@ with tab_overview:
 
     st.divider()
 
-    # 2) Drill-down: vertical shares within selected market
+    # 2) Drill-down: sub-vertical shares within selected vertical
 
-    st.subheader(f"{market_label(market_ms)} · {zone_label_ui(zone_ms)} — Breakdown by Vertical")
+    st.subheader(f"{titleize_slug(vertical_ms)} — Breakdown by Sub-vertical")
 
-    ds_market = [d for d in datasets_all if d.zone in zones_ms and d.market == market_ms]
-    if not ds_market:
-        st.info(f"No datasets found for market={market_ms} in zone={zone_ms}.")
+    ds_vertical = [d for d in ds_country if d.vertical == vertical_ms]
+    if not ds_vertical:
+        st.info(f"No datasets found for vertical={titleize_slug(vertical_ms)} in this scope.")
         st.stop()
 
-    rows_vertical = []
-    for d in ds_market:
+    rows_subvertical = []
+    for d in ds_vertical:
         try:
             tmp = load_dataset(d.path)
         except Exception as e:
@@ -1025,31 +1014,31 @@ with tab_overview:
             continue
         if tmp.empty:
             continue
-        rows_vertical.append({"Vertical": d.vertical, "Revenue_M": float(tmp["Revenue_M"].sum())})
+        rows_subvertical.append({"Subvertical": d.subvertical, "Revenue_M": float(tmp["Revenue_M"].sum())})
 
-    if not rows_vertical:
-        st.info("No usable revenue data for this market / zone.")
+    if not rows_subvertical:
+        st.info("No usable revenue data for this vertical / country scope.")
         st.stop()
 
-    df_vert = pd.DataFrame(rows_vertical).groupby("Vertical", as_index=False)["Revenue_M"].sum()
-    total_market = float(df_vert["Revenue_M"].sum())
-    if total_market <= 0:
-        st.info("Total revenue is 0 for this market (nothing to display).")
+    df_sub = pd.DataFrame(rows_subvertical).groupby("Subvertical", as_index=False)["Revenue_M"].sum()
+    total_vertical = float(df_sub["Revenue_M"].sum())
+    if total_vertical <= 0:
+        st.info("Total revenue is 0 for this vertical (nothing to display).")
         st.stop()
 
-    df_vert["Share_%"] = (df_vert["Revenue_M"] / total_market * 100).round(1)
-    df_vert["Vertical_label"] = df_vert["Vertical"].map(titleize_slug)
-    df_vert = df_vert.sort_values("Revenue_M", ascending=True).copy()
-    df_vert["Share_label"] = df_vert["Share_%"].astype(str) + "%"
+    df_sub["Share_%"] = (df_sub["Revenue_M"] / total_vertical * 100).round(1)
+    df_sub["Subvertical_label"] = df_sub["Subvertical"].map(titleize_slug)
+    df_sub = df_sub.sort_values("Revenue_M", ascending=True).copy()
+    df_sub["Share_label"] = df_sub["Share_%"].astype(str) + "%"
 
-    st.caption(f"{market_label(market_ms)} total (zone {zone_label_ui(zone_ms)}): {total_market:,.0f} M$")
+    st.caption(f"{titleize_slug(vertical_ms)} total: {total_vertical:,.0f} M$")
 
     fig2 = px.bar(
-        df_vert,
+        df_sub,
         x="Revenue_M",
-        y="Vertical_label",
+        y="Subvertical_label",
         orientation="h",
-        labels={"Revenue_M": "Revenue (M$)", "Vertical_label": ""},
+        labels={"Revenue_M": "Revenue (M$)", "Subvertical_label": ""},
         text="Share_label",
         color_discrete_sequence=[C_ROSE],
     )
@@ -1064,6 +1053,8 @@ with tab_overview:
     st.plotly_chart(fig2, use_container_width=True)
 
     st.subheader("Details")
-    df_table = df_vert.sort_values("Revenue_M", ascending=False)[["Vertical_label", "Revenue_M", "Share_%"]].copy()
-    df_table.columns = ["Vertical", "Revenue (M$)", "Share (%)"]
+    df_table = df_sub.sort_values("Revenue_M", ascending=False)[
+        ["Subvertical_label", "Revenue_M", "Share_%"]
+    ].copy()
+    df_table.columns = ["Sub-vertical", "Revenue (M$)", "Share (%)"]
     st.dataframe(df_table, use_container_width=True, height=260)
