@@ -27,6 +27,9 @@ def apply_filters(
     """
     out = df.copy()
 
+    def _normalize_token(value: str) -> str:
+        return str(value).strip().lower().replace("_", "").replace("-", "").replace(" ", "")
+
     # Revenue filter
     if revenue_col in out.columns:
         r = pd.to_numeric(out[revenue_col], errors="coerce")
@@ -50,7 +53,9 @@ def apply_filters(
     # Categorical filters
     cset = _norm_list(country)
     if cset and country_col in out.columns:
-        out = out[out[country_col].isin(cset)]
+        normalized_targets = {_normalize_token(c) for c in cset if c is not None}
+        normalized_series = out[country_col].astype(str).map(_normalize_token)
+        out = out[normalized_series.isin(normalized_targets)]
 
     tset = _norm_list(company_type)
     if tset and company_type_col in out.columns:
