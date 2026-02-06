@@ -235,6 +235,17 @@ with tab_explorer:
 
     df = pd.concat(dfs, ignore_index=True)
 
+    # When combining multiple sub-verticals, hide duplicate companies by name.
+    # Keeps the first occurrence encountered in the selected scope.
+    if len(selected_subverticals) >= 2 and "Name" in df.columns:
+        before_count = len(df)
+        df = df.drop_duplicates(subset=["Name"], keep="first").reset_index(drop=True)
+        removed_duplicates = before_count - len(df)
+        if removed_duplicates > 0:
+            st.caption(
+                f"{removed_duplicates} doublon(s) masqué(s) sur le champ Name entre les sous-verticales sélectionnées."
+            )
+
     # Display sources
     
     if len(match) == 1:
