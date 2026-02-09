@@ -246,21 +246,22 @@ with tab_explorer:
                 f"{removed_duplicates} doublon(s) masqué(s) sur le champ Name entre les sous-verticales sélectionnées."
             )
 
-    # Display sources
+    # Display sources only on demand
     
-    if len(match) == 1:
-        dataset_info = match[0]
-        st.caption(
-            f"Source: {titleize_slug(dataset_info.vertical)} / {titleize_slug(dataset_info.subvertical)} — "
-            f"{titleize_slug(dataset_info.country)} — {dataset_info.path.name}"
-        )
-    else:
-        files = ", ".join([f"{titleize_slug(d.country)}: {d.path.name}" for d in match])
-        st.caption(
-            f"Source: {titleize_slug(vertical) if vertical != 'All' else 'All Verticals'} / "
-            f"{subvertical_label} — "
-            f"{'All Countries' if len(selected_countries) == len(countries_scope) else 'Selected Countries'} — {files}"
-        )
+    with st.expander("Afficher les sources", expanded=False):
+        if len(match) == 1:
+            dataset_info = match[0]
+            st.caption(
+                f"Source: {titleize_slug(dataset_info.vertical)} / {titleize_slug(dataset_info.subvertical)} — "
+                f"{titleize_slug(dataset_info.country)} — {dataset_info.path.name}"
+            )
+        else:
+            files = ", ".join([f"{titleize_slug(d.country)}: {d.path.name}" for d in match])
+            st.caption(
+                f"Source: {titleize_slug(vertical) if vertical != 'All' else 'All Verticals'} / "
+                f"{subvertical_label} — "
+                f"{'All Countries' if len(selected_countries) == len(countries_scope) else 'Selected Countries'} — {files}"
+            )
     
     # -----------------------
     # Sidebar: Country summary (independent from tiering)
