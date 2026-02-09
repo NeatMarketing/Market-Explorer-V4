@@ -22,8 +22,6 @@ from market_explorer.analytics import (
     compute_insights,
 )
 
-from market_explorer.tiering import add_tier, filter_by_tier
-
 from market_explorer.labels import titleize_slug
 
 from market_explorer.market_explorer_helpers import (
@@ -67,16 +65,6 @@ C_ROSE = "#FF85C8"
 C_WHITE = "#FFFFFF"
 C_CLAIR = "#F2C5DA"
 
-TIER_ORDER = ["All", "Tier 1", "Tier 2", "Tier 3"]
-
-TIER_UI = {
-    "All": "All Markets",
-    "Tier 1": "Large Market",
-    "Tier 2": "Mid-Market",
-    "Tier 3": "Low-Market",
-}
-TIER_UI_INV = {v: k for k, v in TIER_UI.items()}
-
 st.markdown(
     f"""
     <style>
@@ -97,7 +85,6 @@ tab_explorer, tab_overview = st.tabs(["Market Explorer", "Market Overview"])
 
 st.session_state.setdefault("vertical", None)
 st.session_state.setdefault("subverticals", [])
-st.session_state.setdefault("tier_filter", "All")
 st.session_state.setdefault("top_n", 10)
 
 
@@ -264,7 +251,7 @@ with tab_explorer:
             )
     
     # -----------------------
-    # Sidebar: Country summary (independent from tiering)
+    # Sidebar: Country summary
     # -----------------------
     with st.sidebar:
         st.subheader("Pays")
@@ -273,40 +260,10 @@ with tab_explorer:
         )
 
         st.divider()
-
-        # -----------------------
-        # Tiering
-        # -----------------------
-        st.header("Market Tiering")
-
-        t1 = st.number_input("Large Market threshold (M$)", min_value=0.0, value=500.0, step=50.0)
-        t2 = st.number_input("Mid-Market threshold (M$)", min_value=0.0, value=100.0, step=25.0)
-
-        if t1 < t2:
-            st.warning("Large Market threshold should be ≥ Mid-Market threshold. Adjusting automatically.")
-            t1, t2 = t2, t1
-
-        tier_ui_options = [TIER_UI[t] for t in TIER_ORDER]
-        default_internal = st.session_state.get("tier_filter", "All")
-        default_ui = TIER_UI.get(default_internal, TIER_UI["All"])
-        default_index = tier_ui_options.index(default_ui) if default_ui in tier_ui_options else 0
-
-        tier_ui = st.selectbox("Market Tier", tier_ui_options, index=default_index)
-        tier_filter = TIER_UI_INV[tier_ui]
-        st.session_state["tier_filter"] = tier_filter
-
-        st.divider()
-
     # -----------------------
-    # Prepare tiered df + apply tier filter
+    # Revenue bounds 
     # -----------------------
-    df_t = add_tier(df, t1=t1, t2=t2)
-    df_t = filter_by_tier(df_t, tier_filter)
-    
-    # -----------------------
-    # Revenue bounds based on selected tier (TRUE bounds)
-    # -----------------------
-    df_t_rev = df_t.copy()
+    df_t_rev = df.copy()
     df_t_rev["Revenue_M"] = pd.to_numeric(df_t_rev.get("Revenue_M"), errors="coerce")
     valid_rev = df_t_rev["Revenue_M"].dropna()
     
@@ -321,28 +278,22 @@ with tab_explorer:
     rev_max = float(math.ceil(rev_max_raw / 10) * 10) if rev_max_raw > 0 else 0.0
     
     # Sidebar debug caption
-    st.sidebar.caption(f"Max revenue in selected tier: {rev_max_raw:,.1f} M$")
+    st.sidebar.caption(f"Max revenue in selected scope: {rev_max_raw:,.1f} M$")
     
     # -----------------------
     # Sidebar: Filters
     # -----------------------
     company_types = sorted(
-        [c for c in df_t.get("Company Type", pd.Series(dtype=object)).dropna().unique().tolist() if str(c).strip()]
+        [c for c in df.get("Company Type", pd.Series(dtype=object)).dropna().unique().tolist() if str(c).strip()]
     )
     sectors = sorted(
-        [c for c in df_t.get("Sector", pd.Series(dtype=object)).dropna().unique().tolist() if str(c).strip()]
+        [c for c in df.get("Sector", pd.Series(dtype=object)).dropna().unique().tolist() if str(c).strip()]
     )
     
     with st.sidebar:
         st.header("Filters")
-    
-        # Info caption based on tier
-        if tier_filter in ("Tier 1", "Tier 2", "Tier 3"):
-            st.caption(f"Revenue range constrained by {TIER_UI[tier_filter]}.")
-        else:
-            st.caption("Revenue range constrained by current scope (All Markets).")
-    
-        # Slider bounds ARE the tier bounds
+        st.caption("Use the slider handles to set the lower and upper revenue bounds.")
+        # Slider bounds are the scope bounds
         if rev_max <= rev_min:
             revenue_range = (0.0, 0.0)
         else:
@@ -382,7 +333,7 @@ with tab_explorer:
     sector_f = None if sector == "All" else [sector]
 
     df_f = apply_filters(
-        df_t,
+        df,
         revenue_min_m=float(revenue_range[0]),
         revenue_max_m=float(revenue_range[1]),
         country=country_f,
@@ -402,7 +353,6 @@ with tab_explorer:
         scope_countries = ", ".join(titleize_slug(c) for c in selected_countries)
     else:
         scope_countries = f"{len(selected_countries)} Countries"
-    scope_tier = TIER_UI.get(tier_filter, tier_filter)
 
     st.markdown(
         f"""
@@ -417,7 +367,7 @@ with tab_explorer:
                 {scope_vertical} / {scope_subvertical} — {scope_countries}
             </div>
             <div style="margin-top: 4px; font-size: 14px;">
-                <strong>{scope_tier}</strong> · {len(df_f)} target companies
+                 <strong>{len(df_f)} target companies</strong>
             </div>
             <div style="margin-top: 2px; font-size: 13px; color: #666;">
                 Revenue scope: {revenue_range[0]:,.0f}–{revenue_range[1]:,.0f} M$
@@ -822,7 +772,7 @@ with tab_explorer:
             st.session_state["bp_context"] = {
                 **context,
                 "dataset": dataset_label,
-                "tiering": tier_filter,
+                "tiering": "custom_revenue_range",
                 "zone": scope_countries,
                 "market": vertical,
                 "vertical": selected_subverticals,
