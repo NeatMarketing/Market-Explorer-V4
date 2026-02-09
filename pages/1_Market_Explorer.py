@@ -28,7 +28,6 @@ from market_explorer.market_explorer_helpers import (
     company_label,
     compute_bp_simple,
     fmt_money,
-    get_company_context_row,
 )
 
 from market_explorer.notes import (
@@ -105,10 +104,7 @@ with tab_explorer:
             st.switch_page("pages/0_Home.py")
             
         st.button("🔎 Market Explorer", use_container_width=True, disabled=True)
-        
-        if st.button("🏨 BP Hotels", use_container_width=True):
-            st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
-            
+
         st.divider()
 
         
@@ -758,35 +754,6 @@ with tab_explorer:
         selected_row_for_bp = option_to_row.get(selected_label)
 
     can_create_bp = selected_row_for_bp is not None
-
-    if st.button("🚀 Créer un BP", use_container_width=True, disabled=not can_create_bp):
-        if not can_create_bp:
-            st.warning("Veuillez sélectionner une entreprise avant de créer un BP")
-        else:
-            context = get_company_context_row(selected_row_for_bp)
-            dataset_label = (
-                match[0].path.name
-                if len(match) == 1
-                else ", ".join(sorted({d.path.name for d in match}))
-            )
-            st.session_state["bp_context"] = {
-                **context,
-                "dataset": dataset_label,
-                "tiering": "custom_revenue_range",
-                "zone": scope_countries,
-                "market": vertical,
-                "vertical": selected_subverticals,
-                "subvertical": selected_subverticals,
-                "countries_scope": scope_countries,
-                "countries": list(selected_countries),
-                "source": "market_explorer",
-            }
-            try:
-                st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
-            except Exception:
-                st.session_state["current_page"] = "bp_hotels"
-                st.rerun()
-
 
     # -----------------------
     # Notes editor

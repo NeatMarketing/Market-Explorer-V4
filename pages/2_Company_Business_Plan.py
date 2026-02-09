@@ -279,8 +279,6 @@ with st.sidebar:
     if st.button("🔎 Market Explorer", use_container_width=True):
         st.switch_page("pages/1_Market_Explorer.py")
     st.button("📈 BP Hôtellerie", use_container_width=True, disabled=True)
-    if st.button("🏨 Account BP Hotels", use_container_width=True):
-        st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
     st.divider()
 
 

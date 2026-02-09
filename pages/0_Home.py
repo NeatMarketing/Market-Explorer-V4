@@ -9,7 +9,7 @@ from market_explorer.auth import (
     logout,
     signup_enabled,
 )
-from market_explorer.bp_state import clear_bp_state, list_bp_states,load_bp_state
+
 from market_explorer.notes import load_notes, reset_notes
 from market_explorer.ui import add_corner_logo
 
@@ -46,8 +46,6 @@ with st.sidebar:
     st.button("🏠 Home", use_container_width=True, disabled=True)
     if st.button("🔎 Market Explorer", use_container_width=True):
         st.switch_page("pages/1_Market_Explorer.py")
-    if st.button("🏨 BP Hotels", use_container_width=True):
-        st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
     st.divider()
 
 st.title("Market Explorer")
@@ -163,54 +161,13 @@ k3.metric("Status", "Authenticated")
 st.divider()
 
 st.subheader("🚀 Quick actions")
-a1, a2 = st.columns(2)
+a1 = st.container()
 
 with a1:
     st.write("**🔎 Market Explorer**")
     st.caption("Explore markets, filter, shortlist, export target lists.")
     if st.button("Open Market Explorer →", use_container_width=True):
         st.switch_page("pages/1_Market_Explorer.py")
-
-with a2:
-    st.write("🏨 Account BP Hotels")
-    st.caption("Build assumptions and compute business plan outputs for hotels.")
-    if st.button("Open Account BP Hotels ->", use_container_width = True):
-        st.switch_page("pages/3_Account_Business_Plan_Hotels.py")
-
-st.divider()
-
-st.subheader("💾 BP en cours")
-bp_page_path = "pages/3_Account_Business_Plan_Hotels.py"
-
-bp_entries = list_bp_states(profile)
-
-if bp_entries:
-    for entry in bp_entries:
-        summary_parts = [f"**BP enregistré :** {entry.get('name', 'Sans nom')}"]
-        if entry.get("account"):
-            summary_parts.append(f"**Compte :** {entry['account']}")
-        if entry.get("updated_at"):
-            summary_parts.append(f"**Dernière mise à jour :** {entry['updated_at']}")
-        st.info("\n\n".join(summary_parts))
-        
-        open_col, delete_col = st.columns(2)
-        with open_col:
-            if st.button("Réouvrir ce BP", key=f"open_bp_{entry['id']}", use_container_width=True):
-                st.session_state["bp_active_id"] = entry["id"]
-
-                st.session_state["bp_restore_request"] = True
-                st.switch_page(bp_page_path)
-        with delete_col:
-            if st.button("Effacer le BP enregistré", key=f"delete_bp_{entry['id']}", use_container_width=True):
-                clear_bp_state(profile, entry["id"])
-                st.success("BP supprimé.")
-                st.rerun()
-        st.divider()
-
-else:
-    st.caption("Aucun BP enregistré pour le moment. Enregistrez-le depuis l'onglet BP correspondant.")
-
-st.divider()
 
 st.subheader("🗒️ Your latest notes")
 if notes:
